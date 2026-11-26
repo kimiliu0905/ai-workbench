@@ -18,8 +18,16 @@ export async function stitchDetailImages(buffers: Buffer[], width?: number) {
   return sharp({ create: { width: targetWidth, height, channels: 4, background: "white" } }).composite(overlays).png().toBuffer();
 }
 
-export async function exportLongImage(projectId: string) {
+export async function exportLongImage(projectId: string, sectionIds?: string[]) {
   const project = await prisma.project.findUniqueOrThrow({ where: { id: projectId }, include: { sections: { orderBy: { order: "asc" }, include: { currentImageAsset: true } } } });
+  const previewEarly = (project.modelSnapshot as { targetSize?: { width?: number } } | null);
+  if (sectionIds?.length) {
+    const allowed = new Set(sectionIds);
+    const picked = project.sections.filter(section => section.type !== "HERO" && allowed.has(section.id) && section.currentImageAsset);
+    if (!picked.length) throw new Error("选中范围不含已成功的详情图，只导出 ZIP。");
+    const buffers = await Promise.all(picked.map(section => readStorageFile(section.currentImageAsset!.filePath)));
+    return stitchDetailImages(buffers, previewEarly?.targetSize?.width);
+  }
   const details = project.sections.filter(s => s.type !== "HERO" && s.currentImageAsset);
   const preview = (project.modelSnapshot as { previewConfig?: { detailSectionCount?: number }; targetSize?: { width?: number } } | null);
   const expected = project.sections.filter(s => s.type !== "HERO");

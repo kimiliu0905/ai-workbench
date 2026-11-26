@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { ProjectHistoryPage } from "@/lib/services/project-history-service";
 import { formatDate } from "@/lib/utils";
-import { historyCategories, historyCategoryLabels, historyHref, historyPageNumbers } from "@/lib/utils/project-history";
+import { historyCategories, historyCategoryLabels, historyHref, historyPageNumbers, type HistoryCategory } from "@/lib/utils/project-history";
 import { platformLabels } from "@/types/domain";
 import { workEntryHref } from "@/lib/utils/project-entry";
 
@@ -44,7 +44,7 @@ export function RecentProjectList({ history }: { history: ProjectHistoryPage }) 
     <div className="space-y-6" aria-busy={refreshing}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <nav aria-label="作品分类" className="flex flex-wrap gap-2">
-          {historyCategories.map(value => (
+          {historyCategories.filter((value): value is Exclude<HistoryCategory, "xiaohongshu"> => value !== "xiaohongshu").map(value => (
             <Link key={value} href={historyHref(value)} aria-current={category === value ? "page" : undefined} className={buttonVariants({ variant: category === value ? "default" : "outline", className: "gap-2" })}>
               {historyCategoryLabels[value]}<span className="text-xs tabular-nums opacity-70">{counts[value]}</span>
             </Link>
@@ -57,7 +57,7 @@ export function RecentProjectList({ history }: { history: ProjectHistoryPage }) 
           <Layers3 className="mx-auto mb-4 h-8 w-8 text-muted-foreground" />
           <p className="font-medium">{category === "all" ? "还没有作品" : `还没有${historyCategoryLabels[category]}作品`}</p>
           <p className="mt-2 text-sm text-muted-foreground">完成创作后，作品会自动保存在这里。</p>
-          <Link href={category === "translation" ? "/translate" : category === "xiaohongshu" ? "/xiaohongshu" : "/"} className={buttonVariants({ variant: "outline", className: "mt-5" })}>开始创作</Link>
+          <Link href={category === "translation" ? "/translate" : "/"} className={buttonVariants({ variant: "outline", className: "mt-5" })}>开始创作</Link>
         </div>
       ) : <div className={`columns-1 gap-4 md:columns-2 xl:columns-4 ${refreshing ? "opacity-60" : ""}`}>
       {projects.map((project) => (

@@ -8,7 +8,7 @@ export function describeQueueRequest(path: string, method: string) {
   const brief = path.match(/^\/api\/projects\/([^/]+)\/brief$/);
   if (brief) return { kind: "analysis" as const, title: "商品初步识别", projectId: brief[1], href: `/projects/${brief[1]}/configure` };
   const xhs = path.match(/^\/api\/xiaohongshu\/(plan|edit|generate)$/);
-  if (xhs) return { kind: "xhs" as const, title: xhs[1] === "plan" ? "小红书内容规划" : xhs[1] === "edit" ? "修改小红书图片" : "生成小红书图片", href: "/xiaohongshu" };
+  if (xhs) return { kind: "xhs" as const, title: xhs[1] === "plan" ? "小红书内容规划" : xhs[1] === "edit" ? "修改小红书图片" : "生成小红书图片", href: "/" };
   return null;
 }
 

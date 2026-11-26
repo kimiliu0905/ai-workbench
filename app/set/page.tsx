@@ -37,6 +37,12 @@ export default function SetPage() {
 
   useEffect(() => { fetch("/api/library").then(read).then(setLibrary).catch(() => undefined); }, []);
   useEffect(() => {
+    const project = new URLSearchParams(window.location.search).get("project");
+    if (!project) return;
+    setProjectId(project);
+    refresh(project).catch(reason => setError(reason.message));
+  }, []);
+  useEffect(() => {
     const timer = setTimeout(() => {
       fetch("/api/workbench/size", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ width, height }) }).then(read).then(plan => setNote(plan.legal ? "" : plan.note)).catch(() => undefined);
     }, 200);
@@ -86,6 +92,7 @@ export default function SetPage() {
       const created = await read(await fetch(`/api/projects/${project.id}/detail-runs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), heroCount: heroes, detailCount: details, imageSettings: { size: `${plan.requestWidth}x${plan.requestHeight}` }, language: "zh-CN", quality: "auto", mode: "create" }) }));
       setProjectId(project.id);
       setRun(created);
+      window.history.replaceState(null, "", `/set?project=${project.id}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "准备失败");
     } finally { setBusy(false); }
@@ -106,6 +113,9 @@ export default function SetPage() {
 
   const step = !run ? "准备" : run.status === "WAITING_PROMPTS" ? "确认分镜" : run.status === "WAITING_INPUT" ? "准备" : ["COMPLETED", "PARTIAL", "FAILED"].includes(run.status) ? "结果" : "生图";
   const images = sections.filter(section => section.currentImageAsset);
+  const failedImages = (run?.checkpoint?.images || []).filter(image => image.state === "FAILED" || image.state === "uncertain");
+  const selectedDetails = sections.filter(section => selected.includes(section.id) && section.type !== "HERO" && section.currentImageAsset);
+  const imageStatus = (state: string) => ({ pending: "排队中", QUEUED: "排队中", PENDING: "排队中", generating: "生成中", GENERATING: "生成中", RUNNING: "生成中", generated: "成功", checked: "成功", SUCCESS: "成功", COMPLETED: "成功", uncertain: "失败", FAILED: "失败" }[state] || state);
   return (
     <div className="flex h-full flex-col">
       <p className="text-sm text-muted-foreground">做一套图</p>
@@ -140,11 +150,18 @@ export default function SetPage() {
       </div>}
       {run?.status === "WAITING_INPUT" && <div className="mt-4 rounded-2xl border bg-white p-4 text-sm"><p>还需要补充一点信息才能出分镜。可以按现有已知事实继续，缺失项不会被当成已确认的测量值。</p><button type="button" className="mt-3 rounded-xl bg-foreground px-4 py-2 text-white" onClick={() => act("answers", { skip: true })}>按现有信息继续</button></div>}
       {run?.status === "WAITING_PROMPTS" && run.checkpoint?.promptReview?.pages?.length ? <div className="mt-4"><PromptReviewPanel review={run.checkpoint.promptReview as never} busy={busy} onSubmit={(action, data) => act(action, data)} /></div> : null}
-      {step === "生图" && <p className="mt-4 text-sm">正在按已确认的页面生成。失败的张不会把整套悄悄重跑。{run?.stage}</p>}
+      {step === "生图" && <div className="mt-4 space-y-3">
+        <p className="text-sm">正在按已确认的页面生成。失败的张不会把整套悄悄重跑。{run?.stage}</p>
+        <ul className="space-y-2 text-sm">{(run?.checkpoint?.images || []).map(image => <li key={image.sectionId} className="flex justify-between rounded-xl border bg-white px-3 py-2"><span>{image.title || image.sectionId}</span><span>{imageStatus(image.state)}</span></li>)}</ul>
+        <p className="text-xs text-muted-foreground">失败 {failedImages.length} 张。已成功的图可以预览，不会整套重跑。</p>
+      </div>}
       {step === "结果" && <div className="mt-4 space-y-3">
+        <p className="text-sm text-muted-foreground">失败 {sections.filter(section => !section.currentImageAsset).length} 张。未成功的图不能勾选，也不会进入导出。</p>
         <div className="flex flex-wrap gap-2 text-sm">
           <a className="rounded-xl border px-3 py-2" href={`/api/projects/${projectId}/export/images`}>导出全部 ZIP</a>
           <a className="rounded-xl bg-foreground px-3 py-2 text-white" href={`/api/projects/${projectId}/export/long-image`}>下载详情长图</a>
+          <a className={`rounded-xl border px-3 py-2 ${selected.length ? "" : "pointer-events-none opacity-40"}`} href={selected.length ? `/api/projects/${projectId}/export/images?sections=${selected.map(encodeURIComponent).join(",")}` : "#"}>只导出选中 ZIP</a>
+          {selectedDetails.length ? <a className="rounded-xl border px-3 py-2" href={`/api/projects/${projectId}/export/long-image?sections=${selected.map(encodeURIComponent).join(",")}`}>选中长图</a> : <span className="rounded-xl border px-3 py-2 text-muted-foreground">选中不含详情图时只出 ZIP</span>}
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{sections.map(section => {
           const file = section.currentImageAsset?.filePath;

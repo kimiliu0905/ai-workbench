@@ -46,11 +46,21 @@ export async function getBatch(id: string) {
   const runs = await prisma.detailRun.findMany({ where: { id: { in: items.flatMap(i => !i.language && i.runId ? [i.runId] : []) } } });
   const translations = await Promise.all(items.map(item => item.language ? getTranslationTask(translationTaskId(id, item.projectId)) : null));
   const projects = await prisma.project.findMany({ where: { id: { in: items.flatMap(i => [i.projectId, ...(i.sourceProjectId ? [i.sourceProjectId] : [])]) } }, include: { assets: { where: { type: { in: ["MAIN", "ANGLE", "DETAIL", "REFERENCE"] } }, select: { metadata: true } }, sections: { orderBy: { order: "asc" }, include: { currentImageAsset: true } } } });
+  const translatedAssetIds = translations.flatMap(task => task?.progress.images.flatMap(image => image.assetId ? [image.assetId] : []) || []);
+  const translatedAssets = translatedAssetIds.length ? await prisma.productAsset.findMany({ where: { id: { in: translatedAssetIds } } }) : [];
   const visibleItems = items.map((item, index) => {
     const project = projects.find(p => p.id === item.projectId);
     const run = runs.find(r => r.id === item.runId);
     const translation = translations[index];
-    if (translation) return { ...item, ready: Boolean(project), status: translation.status === "SUCCESS" ? "COMPLETED" : translation.status, message: translation.errorMessage || translation.progress.message, name: project?.name || "翻译作品", translationProgress: translationSummary(translation.progress.images), failures: translation.progress.images.filter(image => image.error).map(image => ({ title: image.title, message: image.error })), images: project?.sections.filter(s => s.currentImageAsset).map(s => ({ id: s.id, type: s.type, url: assetPublicUrl(s.currentImageAsset) })) || [] };
+    if (translation) {
+      const sectionImages = project?.sections.filter(s => s.currentImageAsset).map(s => ({ id: s.id, type: s.type, url: assetPublicUrl(s.currentImageAsset) })) || [];
+      const progressImages = translation.progress.images.flatMap(image => {
+        if (image.status !== "COMPLETED" || !image.assetId) return [];
+        const asset = translatedAssets.find(item => item.id === image.assetId);
+        return asset ? [{ id: image.sectionId, type: "DETAIL", url: assetPublicUrl(asset) }] : [];
+      });
+      return { ...item, ready: Boolean(project), status: translation.status === "SUCCESS" ? "COMPLETED" : translation.status, message: translation.errorMessage || translation.progress.message, name: project?.name || "翻译作品", translationProgress: translationSummary(translation.progress.images), failures: translation.progress.images.filter(image => image.error).map(image => ({ title: image.title, message: image.error })), images: sectionImages.length ? sectionImages : progressImages };
+    }
     if (item.language) {
       const source = projects.find(p => p.id === item.sourceProjectId);
       return { ...item, ready: Boolean(project), status: item.status === "RUNNING" && ["FAILED", "CANCELED"].includes(task.status) ? "INTERRUPTED" : item.status, name: project?.name || source?.name || "翻译作品", translationProgress: { completed: 0, failed: 0, total: source?.assets.filter(a => !isStyleReference(a)).length || 0 }, images: [] };

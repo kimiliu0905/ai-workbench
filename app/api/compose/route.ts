@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { attachComposeInput, createComposeJob, generateComposeJob, listComposeTemplates, saveComposeResult, saveComposeTemplate } from "@/lib/workbench/compose";
+import { applyComposeTemplate, attachComposeInput, createComposeJob, generateComposeJob, listComposeTemplates, saveComposeResult, saveComposeTemplate } from "@/lib/workbench/compose";
 import { planImageSize } from "@/lib/image/size-policy";
 import { getWorkbenchSettings } from "@/lib/workbench/settings";
 import { withProviderCredentials } from "@/lib/services/provider-runtime";
@@ -8,12 +8,14 @@ import { prisma } from "@/lib/db/prisma";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const jobs = await prisma.composeJob.findMany({ orderBy: { updatedAt: "desc" }, take: 20 });
+    const id = request.nextUrl.searchParams.get("id") || "";
+    const job = id ? await prisma.composeJob.findUnique({ where: { id } }) : null;
+    const jobs = job ? [job] : await prisma.composeJob.findMany({ orderBy: { updatedAt: "desc" }, take: 20 });
     const templates = await listComposeTemplates();
     const settings = await getWorkbenchSettings();
-    return ok({ jobs, templates, modelId: settings.imageModelId });
+    return ok({ job, jobs, templates, modelId: settings.imageModelId });
   } catch (error) { return handleRouteError(error); }
 }
 
@@ -51,9 +53,10 @@ export async function PUT(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json() as { jobId?: string; instruction?: string; save?: boolean; versionId?: string };
+    const body = await request.json() as { jobId?: string; instruction?: string; save?: boolean; versionId?: string; revision?: string; templateId?: string };
     if (!body.jobId) throw new Error("缺少做图任务。");
     if (body.save) return ok(await saveComposeResult(body.jobId, body.versionId));
-    return await withProviderCredentials(request, async () => ok(await generateComposeJob(body.jobId!, body.instruction)));
+    if (body.templateId) return ok(await applyComposeTemplate(body.jobId, body.templateId));
+    return await withProviderCredentials(request, async () => ok(await generateComposeJob(body.jobId!, body.instruction, body.revision)));
   } catch (error) { return handleRouteError(error); }
 }

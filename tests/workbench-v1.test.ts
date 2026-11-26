@@ -135,8 +135,8 @@ test("chat attachments are not library assets and the shell hides removed entrie
   assert.match(saved.relative, /^chat\//);
   assert.equal(await db.libraryAsset.count(), before);
   const shell = await readFile("components/layout/app-shell.tsx", "utf8");
-  for (const label of ["首页", "聊天", "做一张图", "做一套图", "译图", "Agent", "素材库"]) assert.match(shell, new RegExp(label));
-  assert.doesNotMatch(shell, /小红书|监控|热力图|API 配置/);
+  for (const label of ["首页", "聊天", "做一张图", "做一套图", "译图", "Agent"]) assert.match(shell, new RegExp(label));
+  assert.doesNotMatch(shell, /素材库|href="\/library"|小红书|监控|热力图|API 配置/);
   const login = await readFile("app/login/page.tsx", "utf8");
   assert.match(login, /输入共享口令进入/);
   assert.doesNotMatch(login, /apiKey|API Key|演示口令/);
@@ -248,4 +248,36 @@ test("profile hides the consumption heatmap and a set can copy a library image",
   await library.replaceLibraryAsset(saved.id, replacement, "image/png");
   const taskBytes = await readFile(path.join(process.env.STORAGE_ROOT || "", copied.filePath));
   assert.equal(taskBytes.equals(png), true);
+});
+
+test("product acceptance gaps stay closed in source", async () => {
+  const { translationPreviewCopy } = await import("../lib/translation/preview");
+  const { defaultProfile } = await import("../lib/profile");
+  assert.equal(translationPreviewCopy({ status: "COMPLETED", images: [], translationProgress: { completed: 1, failed: 0, total: 1 } }), "译图已完成。打开对照预览即可查看。");
+  assert.equal(translationPreviewCopy({ status: "RUNNING", images: [], translationProgress: { completed: 0, failed: 0, total: 1 } }), "等待译图完成，预览将自动更新。");
+  assert.equal(translationPreviewCopy({ status: "COMPLETED", images: [{ id: "a" }], translationProgress: { completed: 1, failed: 0, total: 1 } }), null);
+  assert.equal(defaultProfile.username, "yezijian");
+  assert.equal(defaultProfile.name, "椰子酱");
+  const profileView = await readFile("components/settings/user-profile.tsx", "utf8");
+  assert.doesNotMatch(profileView, /仅保存在当前浏览器/);
+  const providers = await readFile("components/providers/provider-settings.tsx", "utf8");
+  const providerPage = await readFile("app/settings/providers/page.tsx", "utf8");
+  assert.doesNotMatch(providers, /id="provider-api-key"|请输入当前浏览器使用的 API Key|请填写 API Key/);
+  assert.match(providerPage, /redirect\("\/settings"\)/);
+  const history = await readFile("components/projects/recent-project-list.tsx", "utf8");
+  const xhsEdit = await readFile("app/xiaohongshu/edit/page.tsx", "utf8");
+  const xhsGenerate = await readFile("app/xiaohongshu/generate/page.tsx", "utf8");
+  const xhsReview = await readFile("app/xiaohongshu/review/page.tsx", "utf8");
+  assert.match(history, /value !== "xiaohongshu"/);
+  for (const page of [xhsEdit, xhsGenerate, xhsReview]) assert.match(page, /redirect\("\/"\)/);
+  const setPage = await readFile("app/set/page.tsx", "utf8");
+  const compose = await readFile("app/compose/page.tsx", "utf8");
+  assert.match(setPage, /searchParams\(window\.location\.search\)\.get\("project"\)|get\("project"\)/);
+  assert.match(setPage, /只导出选中 ZIP/);
+  assert.match(setPage, /选中长图/);
+  assert.match(setPage, /排队中/);
+  assert.match(compose, /get\("job"\)/);
+  assert.match(compose, /继续修改/);
+  assert.match(compose, /套用模板/);
+  assert.match(compose, /版本列表/);
 });

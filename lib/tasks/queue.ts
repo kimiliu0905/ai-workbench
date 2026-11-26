@@ -46,7 +46,7 @@ export function buildTaskQueue(tasks: QueueTaskRow[], runs: QueueRunRow[], now =
     const total = images.length || (["edit", "regenerate"].includes(input.mode) ? 1 : count(input.heroCount) + count(input.detailCount));
     items.push({ id: `run:${run.id}`, sourceId: run.id, source: "run", kind, projectId: run.projectId, title: run.project.name,
       status, message: ["PENDING_QUERY", "UNCERTAIN"].includes(status) ? taskStatusLabels[status] : interrupted ? "执行已中断，已保存当前进度" : stages[run.stage] || run.stage || taskStatusLabels[status],
-      href: kind === "xhs" ? `/xiaohongshu?project=${run.projectId}` : `/projects/${run.projectId}/editor`,
+      href: `/projects/${run.projectId}/editor`,
       createdAt: run.createdAt.toISOString(), updatedAt: run.updatedAt.toISOString(),
       ...projectTaskDuration({ status, createdAt: run.createdAt.toISOString(), updatedAt: run.updatedAt.toISOString(), timing: cp.taskTiming }, now),
       completed: images.filter(image => image.assetId).length, total, pendingQuery, uncertain, failed: requests.filter(r => ["failed", "rejected"].includes(r.state) || r.upstreamTask?.status === "failed").length, unit: "张",

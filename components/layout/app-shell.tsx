@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, House, ImageIcon, Images, Languages, Library, MessageSquare, Settings } from "lucide-react";
+import { Bot, House, ImageIcon, Images, Languages, MessageSquare, Settings } from "lucide-react";
 import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/product";
 import { cn } from "@/lib/utils";
 
@@ -43,9 +43,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          <Link href="/library" aria-current={active("/library") ? "page" : undefined} className={cn("mt-2 flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm", active("/library") ? "border border-foreground bg-white font-medium" : "text-muted-foreground hover:bg-white hover:text-foreground")}>
-            <Library aria-hidden="true" className="h-4 w-4" />素材库
-          </Link>
           <div className="mt-auto rounded-2xl border border-border bg-white p-3 text-xs leading-5 shadow-sm">
             <p className="font-medium text-foreground">已进入</p>
             <p className="mt-1 font-semibold">本机工作台</p>
@@ -58,7 +55,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex min-h-[calc(100vh-2rem)] min-w-0 flex-1 flex-col rounded-[2rem] border border-border bg-card p-5 shadow-[0_24px_60px_-38px_rgba(0,0,0,0.28)] md:p-6">
           <nav aria-label="移动端主导航" className="mb-4 flex gap-2 overflow-auto md:hidden">
             {navItems.map(item => <Link key={item.href} href={item.href} className="shrink-0 rounded-xl border px-3 py-2 text-sm">{item.label}</Link>)}
-            <Link href="/library" className="shrink-0 rounded-xl border px-3 py-2 text-sm">素材库</Link>
             <Link href="/settings" className="shrink-0 rounded-xl border px-3 py-2 text-sm">设置</Link>
           </nav>
           <div className="flex min-h-0 flex-1 flex-col">{children}</div>

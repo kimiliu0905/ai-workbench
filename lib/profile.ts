@@ -7,7 +7,7 @@ export const profileSchema = z.object({
   avatar: z.string().max(400_000, "头像文件过大").regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/, "请上传有效的头像图片").nullable(),
 });
 export type UserProfile = z.infer<typeof profileSchema>;
-export const defaultProfile: UserProfile = { name: "创作者", username: "mxpage", avatar: null };
+export const defaultProfile: UserProfile = { name: "椰子酱", username: "yezijian", avatar: null };
 
 export function readProfile(raw: string | null): UserProfile {
   try {

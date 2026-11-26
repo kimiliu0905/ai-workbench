@@ -28,11 +28,11 @@ function ProfileEditor() {
     <Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[110] bg-black/45 backdrop-blur-sm" />
       <Dialog.Content className="fixed left-1/2 top-1/2 z-[111] max-h-[90vh] w-[calc(100%_-_2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-border bg-card p-6 shadow-xl">
         <Dialog.Title className="text-xl font-semibold">编辑个人资料</Dialog.Title>
-        <Dialog.Description className="mt-2 text-sm text-muted-foreground">头像和名称用于当前浏览器的用户中心。</Dialog.Description>
+        <Dialog.Description className="mt-2 text-sm text-muted-foreground">头像和名称保存在这台电脑上，供这台工作台使用。</Dialog.Description>
         <form className="mt-6 space-y-5" onSubmit={event => {
           event.preventDefault(); setError("");
           try { saveProfile(draft); setOpen(false); toast.success("个人资料已保存"); }
-          catch (cause) { setError((cause as { issues?: Array<{ message: string }> }).issues?.[0]?.message || "保存失败，请检查浏览器是否允许本地存储。"); }
+          catch (cause) { setError((cause as { issues?: Array<{ message: string }> }).issues?.[0]?.message || "保存失败，请检查这台电脑是否允许本地保存。"); }
         }}>
           <div className="flex items-center gap-4">
             <UserAvatar profile={draft} className="h-20 w-20" />
@@ -75,6 +75,6 @@ export function UserProfilePage() {
       <p className="mb-4 mt-1 text-sm text-muted-foreground">@{profile.username}</p>
       <ProfileEditor />
     </div>
-    <p className="text-xs text-muted-foreground">个人资料仅保存在当前浏览器。</p>
+    <p className="text-xs text-muted-foreground">头像和名称保存在这台电脑上，和这台工作台的其他数据在一起。</p>
   </div>;
 }

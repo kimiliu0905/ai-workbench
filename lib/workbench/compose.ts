@@ -65,15 +65,18 @@ export function composePrompt(job: { instruction: string; referenceUse: string; 
   return [`输出一张 ${job.width}×${job.height} 的商品图。`, use, job.instruction || "按槽位图片组合出一张可上架的商品图。", "不要拉伸变形。"].filter(Boolean).join("\n");
 }
 
-export async function generateComposeJob(jobId: string, instruction?: string) {
+export async function generateComposeJob(jobId: string, instruction?: string, revision?: string) {
   const job = await prisma.composeJob.findUnique({ where: { id: jobId } });
   if (!job) throw new Error("做图任务不存在。");
   const settings = await getWorkbenchSettings();
   const plan = planImageSize(job.width, job.height, settings.imageModelId);
   const slots = [job.frameCopyPath, job.productCopyPath, job.referenceCopyPath].filter((value): value is string => Boolean(value));
-  if (!slots.length && !(instruction || job.instruction).trim()) throw new Error("至少要有一张图或一段文字。");
+  const priorVersions = Array.isArray(job.versions) ? job.versions as Array<{ filePath?: string }> : [];
+  if (!slots.length && !(instruction || job.instruction || revision || "").trim()) throw new Error("至少要有一张图或一段文字。");
   const references = await Promise.all(slots.map(async relative => `data:image/png;base64,${(await readLibraryBytes(relative)).toString("base64")}`));
-  const prompt = composePrompt({ ...job, instruction: instruction ?? job.instruction });
+  const last = priorVersions.at(-1)?.filePath;
+  if (revision?.trim() && last) references.unshift(`data:image/png;base64,${(await readLibraryBytes(last)).toString("base64")}`);
+  const prompt = `${composePrompt({ ...job, instruction: instruction ?? job.instruction })}${revision?.trim() ? `\n在上一版结果上继续修改，保留原素材和目标尺寸。修改说明：${revision.trim()}` : ""}`;
   const { adapter } = await getProviderAdapter();
   const source = await adapter.generateImageOnce({
     model: settings.imageModelId,
@@ -93,10 +96,23 @@ export async function generateComposeJob(jobId: string, instruction?: string) {
   await fs.mkdir(path.dirname(absolute), { recursive: true });
   await fs.writeFile(absolute, finished);
   const versions = Array.isArray(job.versions) ? [...(job.versions as Array<Record<string, unknown>>)] : [];
-  versions.push({ id: randomUUID(), filePath: relative, note: instruction || job.instruction, createdAt: new Date().toISOString(), width: actual.width, height: actual.height });
+  versions.push({ id: randomUUID(), filePath: relative, note: revision?.trim() || instruction || job.instruction, createdAt: new Date().toISOString(), width: actual.width, height: actual.height });
   return prisma.composeJob.update({
     where: { id: jobId },
-    data: { status: "SUCCESS", instruction: instruction ?? job.instruction, modelId: settings.imageModelId, requestWidth: plan.requestWidth, requestHeight: plan.requestHeight, sizeNote: plan.note, versions: JSON.parse(JSON.stringify(versions)), error: null },
+    data: { status: "SUCCESS", instruction: revision?.trim() ? job.instruction : (instruction ?? job.instruction), modelId: settings.imageModelId, requestWidth: plan.requestWidth, requestHeight: plan.requestHeight, sizeNote: plan.note, versions: JSON.parse(JSON.stringify(versions)), error: null },
+  });
+}
+
+export async function applyComposeTemplate(jobId: string, templateId: string) {
+  const [job, template] = await Promise.all([
+    prisma.composeJob.findUnique({ where: { id: jobId } }),
+    prisma.composeTemplate.findUnique({ where: { id: templateId } }),
+  ]);
+  if (!job) throw new Error("做图任务不存在。");
+  if (!template) throw new Error("模板不存在。");
+  return prisma.composeJob.update({
+    where: { id: jobId },
+    data: { instruction: template.instruction, referenceUse: template.referenceUse, referenceNote: template.referenceNote, width: template.width, height: template.height },
   });
 }
 

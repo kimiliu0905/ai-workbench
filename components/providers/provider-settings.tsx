@@ -526,7 +526,7 @@ export function ProviderSettings({ initialProviders, runtimeConfig }: ProviderSe
     try {
       const values = currentSubmitValues();
       await persistProviderConfig(values, false);
-      toast.success("已另存为新服务，API Key 仅保存在本地浏览器");
+      toast.success("已另存为新服务");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "配置保存失败");
     } finally {
@@ -548,7 +548,7 @@ export function ProviderSettings({ initialProviders, runtimeConfig }: ProviderSe
       <Card>
         <CardHeader>
           <CardTitle>模型服务连接</CardTitle>
-          <CardDescription>API Key 只保存在当前浏览器。本地保存后，请求时临时传给后端，不写入服务器配置。</CardDescription>
+          <CardDescription>模型密钥由这台电脑的主进程提供。页面不收集密钥，也不写入数据库。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           {baseUrlLocked ? (
@@ -601,7 +601,7 @@ export function ProviderSettings({ initialProviders, runtimeConfig }: ProviderSe
                       {selectedProvider.isActive ? <Badge variant="success">当前服务</Badge> : null}
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">{selectedProvider.baseUrl}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Key：仅保存在当前浏览器</p>
+                    <p className="mt-1 text-xs text-muted-foreground">密钥由本机主进程提供，不在此页填写。</p>
                     <p className="mt-1 text-xs text-muted-foreground">最近更新：{formatTimeLabel(selectedProvider.updatedAt)}</p>
                   </div>
                   <Button
@@ -619,7 +619,7 @@ export function ProviderSettings({ initialProviders, runtimeConfig }: ProviderSe
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">首次使用时，请填写 API Key 并发现模型。</div>
+              <div className="rounded-2xl border border-dashed border-border p-4 text-sm text-muted-foreground">首次使用时，由这台电脑上已经配置的模型服务发现模型。</div>
             )}
           </div>
 
@@ -639,11 +639,7 @@ export function ProviderSettings({ initialProviders, runtimeConfig }: ProviderSe
                 <Input id="provider-base-url" disabled={loading !== null} inputMode="url" autoComplete="off" autoCapitalize="none" value={form.baseUrl} onChange={(event) => updateForm({ baseUrl: event.target.value })} placeholder="https://your-provider.example/v1" />
               </div>
             ) : null}
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="provider-api-key">API Key</Label>
-              <Input id="provider-api-key" disabled={loading !== null} type="password" autoComplete="new-password" value={form.apiKey} onChange={(event) => updateForm({ apiKey: event.target.value })} placeholder="请输入当前浏览器使用的 API Key" />
-              <p className="text-xs text-muted-foreground">API Key 仅在配置保存成功后写入当前浏览器，不会保存到服务器数据库。更换服务地址后需重新填写该服务的密钥。</p>
-            </div>
+            <p className="text-xs text-muted-foreground md:col-span-2">模型密钥只放在本机主进程，页面不提供密钥输入。</p>
           </form>
 
           <div className="space-y-3 rounded-3xl border border-border bg-muted/35 p-4">
@@ -654,17 +650,17 @@ export function ProviderSettings({ initialProviders, runtimeConfig }: ProviderSe
                   一次完成模型发现、配置保存和自动兼容检查。连接检查使用少量文本/识图 token，不生成图片。
                 </p>
               </div>
-              <Button type="button" onClick={() => handleOneClickConfigure()} disabled={loading !== null || !form.apiKey.trim()} className="h-11 shrink-0 gap-2 px-5">
+              <Button type="button" onClick={() => handleOneClickConfigure()} disabled={loading !== null} className="h-11 shrink-0 gap-2 px-5">
                 {loading === "configure" ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
                 {loading === "configure" ? "正在探测…" : "探测并保存"}
               </Button>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button type="button" variant="outline" onClick={() => handleOneClickConfigure(false)} disabled={loading !== null || !form.apiKey.trim()}>
+              <Button type="button" variant="outline" onClick={() => handleOneClickConfigure(false)} disabled={loading !== null}>
                 {loading === "refreshModels" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {loading === "refreshModels" ? "正在读取列表…" : "仅刷新模型列表"}
               </Button>
-              <p className="text-xs leading-6 text-muted-foreground">只读取并保存当前密钥返回的目录，不调用模型。服务商价格页的模型不一定出现在当前密钥的目录中；若缺少模型，请核对密钥权限、分组及服务商目录。</p>
+              <p className="text-xs leading-6 text-muted-foreground">只读取并保存本机模型服务返回的目录，不调用模型。若缺少模型，请核对主进程里的服务配置。</p>
             </div>
             {probe && <div role="status" aria-live="polite" className={cn("space-y-1 rounded-xl border p-3 text-sm", probe.status === "error" ? "border-destructive/30 text-destructive" : probe.status === "success" ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-300" : "text-muted-foreground")}>
               <p>{probe.message}</p>
@@ -672,7 +668,7 @@ export function ProviderSettings({ initialProviders, runtimeConfig }: ProviderSe
             </div>}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-3">
               <p className="text-xs text-muted-foreground">需要保留当前历史服务时，可先一键配置确认模型，再另存为新服务。</p>
-              <Button type="button" variant="outline" onClick={saveProviderAsNew} disabled={loading !== null || models.length === 0 || !form.apiKey.trim()}>
+              <Button type="button" variant="outline" onClick={saveProviderAsNew} disabled={loading !== null || models.length === 0}>
                 {loading === "saveAsNew" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CopyPlus className="mr-2 h-4 w-4" />}
                 另存为新服务
               </Button>

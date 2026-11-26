@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const jobId = request.nextUrl.searchParams.get("jobId") || "";
   const job = await prisma.composeJob.findUnique({ where: { id: jobId } });
-  const versions = (job?.versions as Array<{ filePath: string }> | undefined) || [];
-  const latest = versions.at(-1);
+  const versions = (job?.versions as Array<{ id?: string; filePath: string }> | undefined) || [];
+  const requested = request.nextUrl.searchParams.get("versionId");
+  const latest = versions.find(version => version.id === requested) || versions.at(-1);
   if (!job || !latest) return fail("NOT_FOUND", "还没有可下载的图片。", null, 404);
   const root = path.resolve(process.cwd(), process.env.STORAGE_ROOT || "./storage");
   const absolute = path.resolve(root, latest.filePath);
