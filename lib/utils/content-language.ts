@@ -9,6 +9,8 @@
   "pt-PT",
   "ar-SA",
   "ru-RU",
+  "th-TH",
+  "id-ID",
 ] as const;
 
 export type ContentLanguage = (typeof contentLanguageOptions)[number];
@@ -24,6 +26,8 @@ export const contentLanguageLabels: Record<ContentLanguage, string> = {
   "pt-PT": "Português",
   "ar-SA": "العربية",
   "ru-RU": "Русский",
+  "th-TH": "ไทย 泰语",
+  "id-ID": "Bahasa Indonesia 印尼语",
 };
 
 export const contentLanguageNamesForPrompt: Record<ContentLanguage, string> = {
@@ -37,6 +41,8 @@ export const contentLanguageNamesForPrompt: Record<ContentLanguage, string> = {
   "pt-PT": "Portuguese",
   "ar-SA": "Arabic",
   "ru-RU": "Russian",
+  "th-TH": "Thai",
+  "id-ID": "Indonesian",
 };
 
 export function normalizeContentLanguage(value: unknown): ContentLanguage {

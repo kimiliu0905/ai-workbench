@@ -1,3 +1,7 @@
+# 椰子酱电商工作台
+
+中文使用说明见 [README.md](README.md) 开头。这是基于 MxPage 的私有桌面客户端，不是上游官方发行版。
+
 # MxPage 中文文档
 
 完整中文说明维护在 [README.md](README.md)，当前版本为 **v0.3.3**。

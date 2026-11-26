@@ -8,8 +8,8 @@ const imageSizeSchema = z.string().regex(/^(auto|\d{2,4}x\d{2,4})$/).refine((val
   if (value === "auto") return true;
   const [width, height] = value.split("x").map(Number);
   const long = Math.max(width, height), short = Math.min(width, height);
-  return width % 16 === 0 && height % 16 === 0 && long <= 3840 && short > 0 && long / short <= 3 && width * height >= 655360 && width * height <= 8294400;
-}, "尺寸必须为 16 的倍数，像素数在 655360–8294400 之间，长宽比不超过 3:1");
+  return width % 16 === 0 && height % 16 === 0 && long <= 3840 && short >= 16 && long / short <= 3 && width * height <= 8294400;
+}, "尺寸必须为 16 的倍数，长边不超过 3840，长宽比不超过 3:1");
 
 export const detailRunInputSchema = z.object({
   idempotencyKey: z.string().min(8).max(100),

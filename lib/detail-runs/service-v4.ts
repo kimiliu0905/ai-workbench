@@ -11,6 +11,8 @@ import sharp from "sharp";
 import { prisma } from "@/lib/db/prisma";
 import { getProviderAdapter, snapshotProvider, type ProviderSnapshot } from "@/lib/services/provider-service";
 import { runWithProviderCredentials, type RequestProviderCredentials } from "@/lib/services/provider-runtime";
+import { parsePixelSize, planImageSize } from "@/lib/image/size-policy";
+import { getSavedWorkbenchModels } from "@/lib/workbench/settings";
 import { readStorageFile, saveGeneratedImage } from "@/lib/storage/asset-manager";
 import { detailRunInputSchema, socialPostSchema, type DetailRunInput } from "./contracts";
 import { xhsImageCount } from "./xhs";
@@ -146,10 +148,11 @@ export async function createV4DetailRun(projectId: string, raw: unknown, credent
   if (snapshot?.workType === "translation" || snapshot?.translationReady) throw new Error("翻译项目请在详情页翻译入口处理。");
   if (!project.assets.length && input.mode !== "xhs") throw new Error("请先上传商品素材。");
   const { provider } = await getProviderAdapter();
-  const planningModelId = selectModel(provider.models, "planning", undefined, project.assets.length > 0);
-  const analysisModelId = selectModel(provider.models, "analysis");
-  const heroModelId = input.heroCount ? selectModel(provider.models, "hero") : undefined;
-  const imageModelId = input.detailCount ? selectModel(provider.models, "detail") : heroModelId!;
+  const prefs = await getSavedWorkbenchModels();
+  const planningModelId = prefs?.textModelId || selectModel(provider.models, "planning", undefined, project.assets.length > 0);
+  const analysisModelId = prefs?.textModelId || selectModel(provider.models, "analysis");
+  const heroModelId = input.heroCount ? prefs?.imageModelId || selectModel(provider.models, "hero") : undefined;
+  const imageModelId = input.detailCount ? prefs?.imageModelId || selectModel(provider.models, "detail") : heroModelId!;
   const providerSnapshot = snapshotProvider(provider);
   const xhsPromptPack = input.mode === "xhs" ? createXhsPromptPack(project.description || "") : undefined;
   const checkpoint: V4Checkpoint = { workflowVersion: 4, stage: "PREPARE", images: [], imageReviews: {}, answers: [], attempts: {}, timings: {}, ...(input.mode !== "xhs" ? { promptReview: { revision: 0, pages: [] } } : {}) };
@@ -541,6 +544,9 @@ async function executeV4(runId: string) {
     await begin("GENERATE");
     if (cp.lastError?.stage === "GENERATE") cp.lastError = undefined;
     const settings = (input.imageSettings || {}) as { size?: string; background?: "auto" | "opaque" | "transparent"; outputFormat?: "png" | "jpeg" | "webp"; outputCompression?: number; moderation?: "auto" | "low" };
+    const projectRow = await prisma.project.findUnique({ where: { id: projectId }, select: { modelSnapshot: true } });
+    const savedTarget = (projectRow?.modelSnapshot as { targetSize?: { width?: number; height?: number } } | null)?.targetSize;
+    const lockTarget = savedTarget?.width && savedTarget.height ? { width: savedTarget.width, height: savedTarget.height } : parsePixelSize(settings.size);
     const renderOne = async (progress: V4Checkpoint["images"][number], section: typeof sections[number]) => {
       if (progress.assetId) return;
       const key = `GENERATE:${section.id}`;
@@ -553,13 +559,15 @@ async function executeV4(runId: string) {
       progress.state = "generating"; await persist(`GENERATE:${section.title}`);
       try {
         await requestOnce(key, async requestId => {
-          const source = cp.requests![key].resultSource ?? await adapter.generateImageOnce({ model: section.type === "HERO" ? input.heroModelId || input.imageModelId : input.imageModelId, prompt: section.visualPrompt, quality: input.quality, background: settings.background, outputFormat: settings.outputFormat, outputCompression: settings.outputCompression, moderation: settings.moderation, ...(settings.size && settings.size !== "auto" ? { size: settings.size } : { aspectRatio: section.type === "HERO" ? "1:1" : "3:4" }), referenceImages: visualImages, timeoutMs: 180000, monitor: { projectId, sectionId: section.id, runId, operation: "v4_image_generation" },
+          const imageModel = section.type === "HERO" ? input.heroModelId || input.imageModelId : input.imageModelId;
+          const planned = lockTarget ? planImageSize(lockTarget.width, lockTarget.height, imageModel) : null;
+          const source = cp.requests![key].resultSource ?? await adapter.generateImageOnce({ model: imageModel, prompt: section.visualPrompt, quality: input.quality, background: settings.background, outputFormat: settings.outputFormat, outputCompression: settings.outputCompression, moderation: settings.moderation, ...(planned ? { size: `${planned.requestWidth}x${planned.requestHeight}` } : settings.size && settings.size !== "auto" ? { size: settings.size } : { aspectRatio: section.type === "HERO" ? "1:1" : "3:4" }), referenceImages: visualImages, timeoutMs: 180000, monitor: { projectId, sectionId: section.id, runId, operation: "v4_image_generation" },
             upstreamTask: cp.requests![key].upstreamTask,
             onUpstreamTask: async task => { cp.requests![key].upstreamTask = task; await persist(); },
             beforeSubmit: async () => { if (cp.recoverImagesOnly) throw new Error("仅恢复已有图片，禁止提交新的生图请求。"); await lease.assertActive(); },
           });
           if (source.url) { cp.requests![key].resultSource = { url: source.url }; await persist(); }
-          const asset = await saveGeneratedImage({ projectId, sectionId: section.id, prompt: section.visualPrompt, source, metadata: { runId, requestId, workflowVersion: 4 } });
+          const asset = await saveGeneratedImage({ projectId, sectionId: section.id, prompt: section.visualPrompt, source, metadata: { runId, requestId, workflowVersion: 4, targetSize: lockTarget || undefined }, targetSize: lockTarget || undefined });
           await lease.transaction(async tx => { await tx.pageSection.update({ where: { id: section.id }, data: { currentImageAssetId: asset.id, status: "SUCCESS" } }); }, true);
           return asset;
         }, asset => { progress.assetId = asset.id; progress.state = "generated"; });

@@ -1,5 +1,5 @@
-import { XiaohongshuQuickCreate } from "@/components/xiaohongshu/xiaohongshu-quick-create";
+import { redirect } from "next/navigation";
 
-export default function XiaohongshuPage({ searchParams }: { searchParams: { project?: string } }) {
-  return <XiaohongshuQuickCreate initialProjectId={searchParams.project}/>;
+export default function XiaohongshuPage() {
+  redirect("/");
 }

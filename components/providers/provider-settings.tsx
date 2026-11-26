@@ -271,24 +271,12 @@ function formatTimeLabel(value: string | Date) {
 }
 
 function readStoredCredentials() {
-  if (typeof window === "undefined") return { apiKey: "", baseUrl: "" };
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(CLIENT_PROVIDER_STORAGE_KEY) || "{}") as { apiKey?: string; baseUrl?: string };
-    return {
-      apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey.trim() : "",
-      baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl.trim() : "",
-    };
-  } catch {
-    return { apiKey: "", baseUrl: "" };
-  }
+  return { apiKey: "", baseUrl: "" };
 }
 
-function writeStoredCredentials(values: { apiKey: string; baseUrl: string }) {
+function writeStoredCredentials(_values: { apiKey: string; baseUrl: string }) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    CLIENT_PROVIDER_STORAGE_KEY,
-    JSON.stringify({ apiKey: values.apiKey.trim(), baseUrl: values.baseUrl.trim() }),
-  );
+  try { window.localStorage.removeItem(CLIENT_PROVIDER_STORAGE_KEY); } catch { /* The renderer must not keep model keys. */ }
 }
 
 export function ProviderSettings({ initialProviders, runtimeConfig }: ProviderSettingsProps) {

@@ -1,3 +1,16 @@
+# 椰子酱电商工作台
+
+> Private desktop client based on MxPage commit b299520fc3de112f2bd639ba89c62aed8bc5e784. MIT license and the 灵矩绘境 · MxPage copyright notice stay in the source. This is not an official MxPage cloud service.
+
+- Windows desktop only. Electron starts a Next server on 127.0.0.1 and opens it in a window. No LAN bind, tunnel, or public domain in v1.
+- Shared password login. The password hash and model key live in the Electron main process user-data directory and are injected into the local server. The renderer has no API key field and does not store provider keys in localStorage.
+- Defaults: chat `gpt-6-luna` (settings can switch to `gpt-6.2-sol` or `gpt-6.1-terra`); images `gpt-image-2.6-flare`, with `gpt-image-2.6-sunburst` for finer edits. No model picker on the chat page.
+- Features: standalone chat, three-slot single image, MxPage-style image sets, batch translation including Thai and Indonesian, Agent with desktop control off, and one shared image library. Platform choices are 通用电商 plus the existing Taobao/Tmall, Pinduoduo, Douyin, and Xiaohongshu presets. No Shopee/Lazada presets and no standalone Xiaohongshu entry.
+- Output size is recorded on the task. Legal sizes are requested directly. Illegal sizes are requested at the nearest legal size, then scaled or center-cropped locally without stretching. Translation no longer sends size auto, and stitched long images use the task width.
+- Library defaults: uploads from single-image, set, and translation are saved; chat images and generated results are not auto-saved; tasks keep their own copies. No tags or folders.
+- Monitoring heatmaps are not shown to end users. Local backup is an unlisted ops action, not a daily settings item.
+- Automated tests use mocks only. A real Windows double-click install has not been executed in this change.
+
 # MxPage
 
 > Open-source, locally deployable AI e-commerce image workspace by Lingju Huijing (灵矩绘境 / MatrixInspire). MIT source license. Current documentation: v0.3.3, 2026-10-20.

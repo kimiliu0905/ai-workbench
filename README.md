@@ -1,3 +1,11 @@
+# 椰子酱电商工作台
+
+这是装在一台 Windows 电脑上的桌面客户端，基于 [MxPage](https://github.com/ziguishian/MxPage) 提交 `b299520fc3de112f2bd639ba89c62aed8bc5e784`（MIT，版权归灵矩绘境 · MxPage）改造。对外名称是「椰子酱电商工作台」。它不是 MxPage 官方云服务。
+
+日常用法是双击快捷方式或 `YezijianWorkbench.exe`，在窗口里输入共享口令。不需要安装 Node，也不需要记网址。本机服务只监听 `127.0.0.1`。模型密钥和口令哈希只放在 Electron 主进程的用户数据目录（Windows 为 `%APPDATA%/椰子酱电商工作台/`），不出现在页面或 `localStorage`。首次使用前，把 `openaiApiKey` 写进该目录的 `config/secrets.json`，然后重新打开。备份是本机复制，入口是未放入日常导航的 `/ops`。
+
+下面保留上游 MxPage 的说明，便于对照源码。
+
 # MxPage · AI 电商详情页与商品图工作台
 
 源码更新：视觉分镜按自定义主图/详情图总数校验，页面下标必须完整且不重复。分镜失败后可明确确认可能再次计费并“仅重试视觉分镜”，复用已完成规划；成功后等待逐页提示词确认，不自动生成图片。

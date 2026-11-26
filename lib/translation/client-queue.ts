@@ -16,7 +16,7 @@ export type QueueEntry = {
   message: string; uploaded: number; uploadTotal: number;
   batch?: TranslationBatch; error?: string; busy?: boolean; canRetryUpload?: boolean;
 };
-export type TranslationSubmission = { groups: Array<{ name: string; files: File[] }>; languages: ContentLanguage[]; quality: string; instruction: string };
+export type TranslationSubmission = { groups: Array<{ name: string; files: File[] }>; languages: ContentLanguage[]; quality: string; instruction: string; targetWidth?: number; targetHeight?: number };
 export const QUEUE_STORAGE_KEY = "mxpage:translation-queue:v1";
 const activeStatuses = ["PENDING", "RUNNING"];
 export function queueIsActive(entry: QueueEntry) {
@@ -54,7 +54,9 @@ export function createTranslationQueue(deps: {
     store.setState(state => ({ entries: state.entries.map(entry => entry.id === id ? { ...entry, ...patch } : entry) }));
   }
   async function request(url: string, body?: unknown) {
-    const response = await (deps.fetcher ?? fetch)(url, body === undefined ? { cache: "no-store", signal: AbortSignal.timeout(30000) } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(60000) });
+    const method = body && typeof body === "object" && "method" in body && (body.method === "PATCH" || body.method === "POST") ? body.method : body === undefined ? "GET" : "POST";
+    const payload = body && typeof body === "object" && "method" in body ? { ...body, method: undefined } : body;
+    const response = await (deps.fetcher ?? fetch)(url, body === undefined ? { cache: "no-store", signal: AbortSignal.timeout(30000) } : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(60000) });
     const result = await response.json();
     if (!response.ok || !result.success) throw Object.assign(new Error(result.error?.message || "请求失败"), { status: response.status });
     return result.data;
@@ -130,10 +132,20 @@ export function createTranslationQueue(deps: {
         if (!project) {
           const created = await request("/api/projects", { name: group.name.slice(0, 80).padEnd(2, "商品"), platform: "general_ecommerce", style: "generic_clean", description: job.input.instruction, translationUpload: { batchId: id, groupIndex: index } });
           project = { id: created.id, uploaded: 0 }; job.projects[index] = project;
+          if (job.input.targetWidth && job.input.targetHeight) {
+            await request(`/api/projects/${project.id}`, { method: "PATCH", modelSnapshot: { workType: "translation", targetSize: { width: job.input.targetWidth, height: job.input.targetHeight } } });
+          }
           await drafts.put(id, job);
         }
         for (let i = project.uploaded; i < group.files.length; i++) {
           await request(`/api/projects/${project.id}/assets/upload`, { type: i === 0 ? "MAIN" : "ANGLE", uploadKey: `${id}:${index}:${i}`, ...await (deps.readFile ?? fileToBase64Payload)(group.files[i]) });
+          try {
+            const form = new FormData();
+            form.set("file", group.files[i]);
+            form.set("source", "translate");
+            form.set("name", group.files[i].name);
+            await (deps.fetcher ?? fetch)("/api/library", { method: "POST", body: form });
+          } catch { /* 入库失败不阻断翻译。 */ }
           project.uploaded = i + 1;
           await drafts.put(id, job);
           update(id, { uploaded: job.projects.reduce((n, p) => n + p.uploaded, 0) });

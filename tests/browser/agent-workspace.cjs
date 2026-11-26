@@ -40,7 +40,7 @@ async function until(fn) { for(let i=0;i<300;i++){if(await fn())return;await sle
   await db.providerConfig.create({data:{name:'Mock Agent',baseUrl,apiKeyEncrypted:'',isActive:true,models:{create:{modelId:'agent-model-A',label:'测试模型 A',roles:{},isDefaultPlanning:true,capabilities:{text:true,vision:true,__agentTools:{key:hash([`${baseUrl}/v1`,'agent-model-A',fingerprint]),protocol:'chat_completions',streaming:false,verifiedAt:new Date().toISOString()}}}}}});
   const port=await new Promise(r=>{const server=net.createServer();server.listen(0,'127.0.0.1',()=>{const n=server.address().port;server.close(()=>r(n));});});const url=`http://127.0.0.1:${port}`;
   const log=fs.openSync('test-output/agent-browser/server.log','w');
-  const server=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'dev','--hostname','127.0.0.1','--port',String(port)],{windowsHide:true,stdio:['ignore',log,log],env:{...process.env,DATABASE_URL:databaseUrl,STORAGE_ROOT:path.join(directory,'storage'),NEXT_DIST_DIR:dist,MXPAGE_TEST_TSCONFIG:config,LOCK_BASE_URL:baseUrl,FORCED_API_BASE:baseUrl,NEXT_TELEMETRY_DISABLED:'1'}});
+  const server=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'dev','--hostname','127.0.0.1','--port',String(port)],{windowsHide:true,stdio:['ignore',log,log],env:{...process.env,DATABASE_URL:databaseUrl,STORAGE_ROOT:path.join(directory,'storage'),NEXT_DIST_DIR:dist,MXPAGE_TEST_TSCONFIG:config,OPENAI_API_KEY:key,LOCK_BASE_URL:baseUrl,FORCED_API_BASE:baseUrl,NEXT_TELEMETRY_DISABLED:'1'}});
   let browser;
   try{
     await until(async()=>{try{return(await fetch(`${url}/agent`)).ok;}catch{return false;}});
@@ -56,7 +56,10 @@ async function until(fn) { for(let i=0;i<300;i++){if(await fn())return;await sle
       };
     });
     await page.goto(`${url}/agent`);await page.getByRole('heading',{name:'Agent 工作台',exact:true}).waitFor();
-    const nav=page.getByRole('navigation',{name:'主导航',exact:true});assert.deepEqual((await nav.locator('a').allTextContents()).slice(0,2),['Agent 工作台','一键详情页']);
+    const nav=page.getByRole('navigation',{name:'主导航',exact:true});
+    const labels=await nav.locator('a').allTextContents();
+    assert.ok(labels.includes('首页') && labels.includes('Agent'));
+    assert.equal(labels.some(label => label.includes('小红书')), false);
     await page.getByLabel('发送消息',{exact:true}).fill('请整理研究文档并导出');await page.getByRole('button',{name:'发送',exact:true}).click();
     await page.getByRole('button',{name:'确认方案并执行',exact:true}).waitFor({timeout:60000});
     assert.equal(await db.agentArtifact.count(),0);assert.equal(calls.length,1);

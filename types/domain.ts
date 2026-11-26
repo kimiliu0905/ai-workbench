@@ -16,10 +16,10 @@ export const styleOptions = [
 
 export const platformLabels: Record<(typeof platformOptions)[number], string> = {
   general_ecommerce: "通用电商",
-  taobao_tmall: "淘宝 / 天猫",
+  taobao_tmall: "淘宝/天猫",
   pinduoduo: "拼多多",
   xiaohongshu: "小红书",
-  douyin_ecommerce: "抖音电商",
+  douyin_ecommerce: "抖音",
 };
 
 export const styleLabels: Record<(typeof styleOptions)[number], string> = {

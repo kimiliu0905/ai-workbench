@@ -1,3 +1,9 @@
+# 椰子酱电商工作台
+
+Private Windows desktop client based on MxPage commit `b299520fc3de112f2bd639ba89c62aed8bc5e784` (MIT, copyright 灵矩绘境 · MxPage). It is not an official MxPage release. The window title, app id `com.yezijian.ecommerce-workbench`, and user-data directory are separate from MxPage. The local server binds to `127.0.0.1` only. Model keys and the shared-password hash stay in the Electron main process.
+
+The upstream MxPage notes below remain for source context.
+
 # MxPage · AI e-commerce image workspace
 
 Source update: storyboards enforce the requested hero/detail total and unique, complete page indices. Explicitly consenting to a potentially billed storyboard retry preserves the completed plan and retries only art direction. The recovered run waits for page-prompt approval before generating images.

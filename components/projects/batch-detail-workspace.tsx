@@ -28,7 +28,9 @@ export function BatchDetailWorkspace({ translation = false }: { translation?: bo
   const imageModels = useImageCapabilities(translation ? "edit" : "hero,detail");
   const storageKey = translation ? "mxpage:last-translation-batch" : "mxpage:last-detail-batch";
   const [uploadMode, setUploadMode] = useState<"single" | "multiple" | "folder">("single");
-  const [languages, setLanguages] = useState<ContentLanguage[]>(["en-US"]);
+  const [languages, setLanguages] = useState<ContentLanguage[]>(["th-TH", "id-ID"]);
+  const [targetWidth, setTargetWidth] = useState("");
+  const [targetHeight, setTargetHeight] = useState("");
   const [groups, setGroups] = useState<Group[]>([]);
   const [ignored, setIgnored] = useState(0);
   const [platform, setPlatform] = useState("general_ecommerce");
@@ -90,7 +92,8 @@ export function BatchDetailWorkspace({ translation = false }: { translation?: bo
     if (translation) {
       pending.current = true;
       setBusy(true);
-      const id = translationQueue.enqueue({ groups, languages: [...languages], quality, instruction: description });
+      const width = Number(targetWidth), height = Number(targetHeight);
+      const id = translationQueue.enqueue({ groups, languages: [...languages], quality, instruction: description, ...(width > 0 && height > 0 ? { targetWidth: width, targetHeight: height } : {}) });
       router.push(`/translate/${encodeURIComponent(id)}`);
       return;
     }
@@ -139,13 +142,14 @@ export function BatchDetailWorkspace({ translation = false }: { translation?: bo
     try { localStorage.removeItem(storageKey); } catch {}
   }
   return <section className="mx-auto max-w-4xl space-y-7 py-6">
-    <header><p className="text-sm text-muted-foreground">MxPage · {translation ? "详情页翻译" : "批量详情页"}</p><h1 className="mt-3 text-3xl font-semibold">{translation ? "一套详情页，面向多种语言" : "一整个文件夹，逐套完成"}</h1><p className="mt-4 text-muted-foreground">{translation ? "上传已有详情图，选择多个目标语言。每种语言独立保存，完成即可预览和下载。" : "每张独立商品图，或每个商品子文件夹，生成一套详情页。完成一套，立即展示一套。"}</p></header>
+    <header><p className="text-sm text-muted-foreground">{translation ? "译图" : "做一套图"}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{translation ? "把已有图翻成泰语或印尼语" : "先把商品和张数说清楚"}</h1><p className="mt-3 text-sm leading-7 text-muted-foreground">{translation ? "可直接进入，不必先走规划或分镜。每种语言都从原图翻译，默认目标尺寸等于原图宽高。" : "准备好之后再出分镜。确认前不会生图，中途离开也可以从首页最近任务接上。"}</p></header>
     {!batch && <>
       <fieldset disabled={busy || prepared} className="space-y-6 disabled:opacity-70">
         {translation && <div className="flex flex-wrap gap-2" role="group" aria-label="翻译上传模式">{(["single", "multiple", "folder"] as const).map(mode => <Button key={mode} type="button" variant={uploadMode === mode ? "default" : "outline"} aria-pressed={uploadMode === mode} onClick={() => { setUploadMode(mode); setGroups([]); }}>{mode === "single" ? "单张翻译" : mode === "multiple" ? "多张翻译" : "文件夹批量"}</Button>)}</div>}
         <input key={translation ? uploadMode : "folder"} ref={input} type="file" accept="image/png,image/jpeg,image/webp" multiple={!translation || uploadMode !== "single"} {...(!translation || uploadMode === "folder" ? { webkitdirectory: "", directory: "" } : {})} className="hidden" aria-label="选择待处理图片" onChange={e => { choose(Array.from(e.target.files || [])); e.target.value = ""; }}/>
         <div onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = !busy && !prepared && translation && uploadMode !== "folder" ? "copy" : "none"; }} onDrop={e => { e.preventDefault(); e.stopPropagation(); if (!busy && !prepared && translation && uploadMode !== "folder") choose(Array.from(e.dataTransfer.files)); }} className="mx-auto flex aspect-square w-full max-w-sm flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-input bg-background p-6 text-center"><FolderOpen className="h-9 w-9 text-muted-foreground"/><p className="font-medium">{translation && uploadMode !== "folder" ? "拖入此方框或选择详情图片" : "选择包含图片的文件夹"}</p><p className="text-sm leading-6 text-muted-foreground">{translation && uploadMode !== "folder" ? "保留商品、配色和排版，翻译图中文字" : "平铺图片：每张一套；子文件夹：每个文件夹一套"}</p><Button variant="outline" onClick={() => input.current?.click()}>{translation && uploadMode !== "folder" ? "选择图片" : groups.length ? "重新选择文件夹" : "选择文件夹"}</Button><p className="text-xs text-muted-foreground">{translation ? "每套最多 30 张" : "每商品最多 8 张"} · 单图 20MB · 文件夹最多 50 套</p></div>
-        {translation && <fieldset className="space-y-3"><legend className="mb-3 text-sm font-medium">目标语言（可多选）</legend><div className="flex flex-wrap gap-2">{contentLanguageOptions.map(l => <label key={l} className="flex cursor-pointer items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm"><input type="checkbox" checked={languages.includes(l)} onChange={e => setLanguages(e.target.checked ? [...languages,l] : languages.filter(v=>v!==l))}/>{contentLanguageLabels[l]}</label>)}</div></fieldset>}
+        {translation && <fieldset className="space-y-3"><legend className="mb-3 text-sm font-medium">目标语言（可多选）</legend><p className="text-xs text-muted-foreground">默认勾选泰语和印尼语，也可以加选已开口的语言。</p><div className="flex flex-wrap gap-2">{[...contentLanguageOptions.filter(l => l === "th-TH" || l === "id-ID"), ...contentLanguageOptions.filter(l => l !== "th-TH" && l !== "id-ID")].map(l => <label key={l} className="flex cursor-pointer items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm"><input type="checkbox" checked={languages.includes(l)} onChange={e => setLanguages(e.target.checked ? [...languages,l] : languages.filter(v=>v!==l))}/>{contentLanguageLabels[l]}</label>)}</div></fieldset>}
+        {translation && <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-2 text-sm">目标宽度<input value={targetWidth} inputMode="numeric" onChange={e => setTargetWidth(e.target.value.replace(/[^\d]/g, ""))} placeholder="留空则用原图宽度" className="w-full rounded-xl border bg-card px-3 py-2"/></label><label className="space-y-2 text-sm">目标高度<input value={targetHeight} inputMode="numeric" onChange={e => setTargetHeight(e.target.value.replace(/[^\d]/g, ""))} placeholder="留空则用原图高度" className="w-full rounded-xl border bg-card px-3 py-2"/></label></div>}
         {!!groups.length && <div className="space-y-3"><p className="text-sm font-medium">识别到 {groups.length} 套，共 {groups.reduce((n,g)=>n+g.files.length,0)} 张图片{ignored > 0 ? `，已忽略 ${ignored} 个非图片文件` : ""}</p><p className="text-xs text-muted-foreground">{translation ? "图片按文件名自然排序，每个目标语言保留相同顺序。" : "按文件名自然排序，第一张作为主图。"}</p><div className="grid max-h-80 grid-cols-2 gap-3 overflow-auto sm:grid-cols-3">{groups.map((group,i) => <div key={group.key} className="relative flex items-center gap-3 rounded-xl border bg-card p-3"><img src={previews[i]} alt="" className="h-12 w-12 rounded-lg object-contain"/><div className="min-w-0"><p className="truncate pr-3 text-sm">{group.name}</p><p className="text-xs text-muted-foreground">{group.files.length} 张素材</p></div><button type="button" aria-label={`移除商品 ${group.name}`} className="absolute right-1 top-1 p-1" onClick={() => setGroups(groups.filter((_,j)=>j!==i))}><X size={12}/></button></div>)}</div></div>}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {!translation && <label className="space-y-2 text-sm">发布平台<Select value={platform} onValueChange={setPlatform}>{platformOptions.map(p=><option key={p} value={p}>{platformLabels[p]}</option>)}</Select></label>}
