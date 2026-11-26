@@ -238,6 +238,7 @@ async function startNextServer(runtime) {
     env: {
       ...env,
       ELECTRON_RUN_AS_NODE: "1",
+      WORKBENCH_DESKTOP_BROKER: "1",
     },
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe", "ipc"],

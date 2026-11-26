@@ -4,7 +4,13 @@ import { AgentHalt } from "./contracts";
 type Reply = { channel: string; id: string; result?: unknown; error?: string };
 const state = globalThis as typeof globalThis & { agentIpcListening?: boolean; agentIpcPending?: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> };
 const pending = state.agentIpcPending ??= new Map();
-if (process.send && !state.agentIpcListening) { state.agentIpcListening = true; process.on("message", (message: unknown) => {
+
+// Next's dev process also has process.send. Only Electron sets this after it attaches the broker.
+export function desktopBridgeAvailable(env: Record<string, string | undefined> = process.env, ipc: unknown = process.send) {
+  return env.APP_RUNTIME === "desktop" && env.WORKBENCH_DESKTOP_BROKER === "1" && typeof ipc === "function";
+}
+
+if (desktopBridgeAvailable() && !state.agentIpcListening) { state.agentIpcListening = true; process.on("message", (message: unknown) => {
   const reply = message as Reply;
   if (reply?.channel === "mxpage-agent-stop") {
     void import("./store").then(({ stopDesktopRuns }) => stopDesktopRuns((message as any).runIds)).catch(() => undefined);
@@ -14,7 +20,6 @@ if (process.send && !state.agentIpcListening) { state.agentIpcListening = true; 
   const waiter = pending.get(reply.id);
   if (waiter) { pending.delete(reply.id); reply.error ? waiter.reject(new AgentHalt("PAUSED", reply.error)) : waiter.resolve(reply.result); }
 }); }
-export function desktopBridgeAvailable() { return process.env.APP_RUNTIME === "desktop" && typeof process.send === "function"; }
 export async function desktopRequest(action: string, data: unknown = {}): Promise<any> {
   if (!desktopBridgeAvailable()) throw new Error("Agent: 电脑控制仅在 Electron 桌面版可用。");
   const id = randomUUID();

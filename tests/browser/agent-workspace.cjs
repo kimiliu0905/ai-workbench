@@ -88,7 +88,7 @@ async function until(fn) { for(let i=0;i<300;i++){if(await fn())return;await sle
     await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'计划与成果',exact:true}).click();await page.getByRole('heading',{name:'计划与成果',exact:true}).waitFor();
     await page.screenshot({path:'test-output/agent-browser/mobile.png',fullPage:true});await page.getByRole('button',{name:'关闭',exact:true}).click();
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'mobile overflow');
-    await page.goto(`${url}/settings/agent`);await page.getByRole('heading',{name:'Agent 设置',exact:true}).waitFor();await page.getByRole('button',{name:'保存设置',exact:true}).click();await page.getByText('已保存。新任务使用新设置，已有任务继续使用原快照。',{exact:true}).waitFor();
+    await page.goto(`${url}/settings`);await page.getByRole('heading',{name:'预配默认模型和口令',exact:true}).waitFor();await page.getByRole('button',{name:'保存设置',exact:true}).click();await page.getByText('已保存。对新的聊天、做图、译图和 Agent 任务生效。',{exact:true}).waitFor();
     assert.deepEqual(errors,[]);console.log('PASS Agent browser: navigation, confirmation, refresh, document download, answer replay without duplication, rename, mobile drawers, settings');
   }catch(error){
     if(browser){const pages=browser.contexts().flatMap(c=>c.pages());if(pages[0]){await pages[0].screenshot({path:'test-output/agent-browser/failure.png',fullPage:true});fs.writeFileSync('test-output/agent-browser/failure.txt',await pages[0].locator('body').innerText());}}

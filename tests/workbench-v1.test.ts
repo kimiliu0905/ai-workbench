@@ -142,6 +142,18 @@ test("chat attachments are not library assets and the shell hides removed entrie
   assert.doesNotMatch(login, /apiKey|API Key|演示口令/);
 });
 
+test("desktop broker is only the Electron channel, not Next's process.send", async () => {
+  const { desktopBridgeAvailable } = await import("../lib/agent/desktop");
+  const send = () => undefined;
+  assert.equal(desktopBridgeAvailable({ APP_RUNTIME: "desktop" }, send), false);
+  assert.equal(desktopBridgeAvailable({ APP_RUNTIME: "desktop", WORKBENCH_DESKTOP_BROKER: "1" }, undefined), false);
+  assert.equal(desktopBridgeAvailable({ WORKBENCH_DESKTOP_BROKER: "1" }, send), false);
+  assert.equal(desktopBridgeAvailable({ APP_RUNTIME: "desktop", WORKBENCH_DESKTOP_BROKER: "1" }, send), true);
+  const main = await readFile("desktop/main.cjs", "utf8");
+  assert.match(main, /WORKBENCH_DESKTOP_BROKER: "1"/);
+  assert.match(main, /stdio: \["ignore", "pipe", "pipe", "ipc"\]/);
+});
+
 test("desktop startup creates the default provider without storing the API key", async () => {
   const config = await readFile("next.config.mjs", "utf8");
   const main = await readFile("desktop/main.cjs", "utf8");
