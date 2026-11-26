@@ -10,8 +10,8 @@ const { once } = require("node:events");
 const root = path.resolve(__dirname, "..");
 const mac = process.platform === "darwin";
 const appDir = path.join(root, "dist-desktop", mac ? (process.arch === "arm64" ? "mac-arm64" : "mac") : "win-unpacked");
-const resources = mac ? path.join(appDir, "MxPage.app", "Contents", "Resources") : path.join(appDir, "resources");
-const executable = mac ? path.join(appDir, "MxPage.app", "Contents", "MacOS", "MxPage") : path.join(appDir, "MxPage.exe");
+const resources = mac ? path.join(appDir, "椰子酱电商工作台.app", "Contents", "Resources") : path.join(appDir, "resources");
+const executable = mac ? path.join(appDir, "椰子酱电商工作台.app", "Contents", "MacOS", "YezijianWorkbench") : path.join(appDir, "YezijianWorkbench.exe");
 const standalone = path.join(resources, "app", ".next-desktop", "standalone");
 
 async function main() {

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, withSqliteWrite } from "@/lib/db/prisma";
 import { AgentHalt, hash, json, terminal, type AgentPlan } from "./contracts";
 import { reserveSpendTx } from "./budget";
 
@@ -31,7 +31,7 @@ export async function checkRun(id: string, token: string) {
   return run;
 }
 export async function reserveCall(runId: string, token: string, callId: string, name: string, args: unknown, model = false) {
-  return prisma.$transaction(async tx => {
+  return withSqliteWrite(() => prisma.$transaction(async tx => {
     const run = await tx.agentRun.findUniqueOrThrow({ where: { id: runId } });
     if (run.leaseToken !== token || run.status !== "RUNNING" || !run.leaseUntil || run.leaseUntil.getTime() < Date.now()) throw new AgentHalt("PAUSED", "任务已暂停。");
     const existing = await tx.agentToolCall.findUnique({ where: { runId_callId: { runId, callId } } });
@@ -46,15 +46,15 @@ export async function reserveCall(runId: string, token: string, callId: string, 
     await tx.agentRun.update({ where: { id: runId }, data: model ? { modelCalls: { increment: 1 } } : { toolCalls: { increment: 1 } } });
     const call = await tx.agentToolCall.upsert({ where: { runId_callId: { runId, callId } }, create: { runId, callId, name, argsHash: hash(args) }, update: { status: "RUNNING", error: null } });
     return { call, budgetId };
-  });
+  }));
 }
 export async function completeCall(runId: string, token: string, id: string, output: unknown) {
   // A pause/stop drains in-flight work, but a different owner may never commit it.
-  await prisma.$transaction(async tx => {
+  await withSqliteWrite(() => prisma.$transaction(async tx => {
     const lock = await tx.agentRun.updateMany({ where: { id: runId, leaseToken: token }, data: { updatedAt: new Date() } });
     if (!lock.count) throw new AgentHalt("PAUSED", "执行所有权已改变。");
     await tx.agentToolCall.update({ where: { id }, data: { status: "COMPLETED", output: json(output) } });
-  });
+  }));
 }
 export async function updatePlan(runId: string, token: string, plan: AgentPlan) {
   const run = await checkRun(runId, token);

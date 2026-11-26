@@ -1,9 +1,10 @@
 import { buildImageArchive } from "@/lib/services/export-service";
 import { handleRouteError } from "@/lib/utils/route";
 
-export async function GET(_request: Request, context: { params: { id: string } }) {
+export async function GET(request: Request, context: { params: { id: string } }) {
   try {
-    const stream = await buildImageArchive(context.params.id);
+    const sections = new URL(request.url).searchParams.get("sections")?.split(",").map(id => id.trim()).filter(Boolean);
+    const stream = await buildImageArchive(context.params.id, sections);
     return new Response(stream as never, {
       headers: {
         "Content-Type": "application/zip",

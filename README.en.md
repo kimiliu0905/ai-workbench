@@ -1,3 +1,9 @@
+# 椰子酱电商工作台
+
+Private Windows desktop client based on MxPage commit `b299520fc3de112f2bd639ba89c62aed8bc5e784` (MIT, copyright 灵矩绘境 · MxPage). It is not an official MxPage release. The window title, app id `com.yezijian.ecommerce-workbench`, and user-data directory are separate from MxPage. The local server binds to `127.0.0.1` only. Model keys and the shared-password hash stay in the Electron main process.
+
+The upstream MxPage notes below remain for source context.
+
 # MxPage · AI e-commerce image workspace
 
 Source update: storyboards enforce the requested hero/detail total and unique, complete page indices. Explicitly consenting to a potentially billed storyboard retry preserves the completed plan and retries only art direction. The recovered run waits for page-prompt approval before generating images.
@@ -41,7 +47,7 @@ Desktop drivers are integrated but control defaults to off. Windows input/save a
 - Phone mockup preview, per-image editing/version history, ZIP and stitched detail-page exports.
 - Independent fixed-prompt translation: single images, multiple images, folders, multiple languages and source/result comparison. Submission opens a dedicated progress and preview page; each image set saves one result project per language, without an extra source-only project. IndexedDB upload checkpoints survive refresh; stable request IDs prevent duplicate projects and uploads after lost responses. Legacy duplicate source-only uploads are hidden from work lists while their files and comparison sources remain intact. No product-planning Agent.
 - Shared task queue, stage/per-image timing, API cost and stability charts, CNY estimates with editable conversion.
-- Local avatar/profile, rolling 12-month usage heatmap, model settings and appearance.
+- Local avatar/profile, model settings and appearance. The usage heatmap is hidden from end users.
 
 Presets do not publish to marketplaces. This is an image-production workspace, not a storefront builder.
 

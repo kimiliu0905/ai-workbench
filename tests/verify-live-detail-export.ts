@@ -55,7 +55,7 @@ async function main() {
   const longResponse = await fetch(`${base}/export/long-image`); assert.equal(longResponse.status, 200);
   const long = Buffer.from(await longResponse.arrayBuffer());
   const longMetadata = await sharp(long).metadata();
-  assert.equal(longMetadata.width, 1080);
+  assert.equal(longMetadata.width, dimensions.find(item => item.type !== "HERO")?.width);
   assert.deepEqual(long, await stitchDetailImages(manifest.details.map((d: any) => entries.get(d.zipPath)!)), "Long image must exactly match ordered ZIP detail images");
   const result = {
     projectId, runId: run.id, status: run.status, verifiedAt: new Date().toISOString(),

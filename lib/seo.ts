@@ -1,5 +1,5 @@
-export const productTitle = "MxPage · AI 电商详情页与商品图工作台";
-export const productDescription = "开源 AI 电商详情页生成工具，支持商品主图、完整详情长图、批量图片翻译、小红书图文、断点恢复与费用监控，可本地部署或使用 Windows / macOS 桌面版。";
+export const productTitle = "椰子酱电商工作台";
+export const productDescription = "装在这台 Windows 电脑上的电商图文工作台。基于 MxPage（MIT，灵矩绘境）改造，支持聊天、做一张图、做一套图、译图和 Agent。";
 
 export function publicSiteUrl() {
   const value = process.env.NEXT_PUBLIC_SITE_URL?.trim();

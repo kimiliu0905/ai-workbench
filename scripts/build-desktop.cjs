@@ -112,6 +112,10 @@ async function prepareStandaloneBundle() {
     path.join(standaloneRoot, "scripts", "apply-prisma-migrations.cjs"),
   );
   await copyFileWithParents(
+    path.join(projectRoot, "scripts", "ensure-desktop-defaults.cjs"),
+    path.join(standaloneRoot, "scripts", "ensure-desktop-defaults.cjs"),
+  );
+  await copyFileWithParents(
     path.join(projectRoot, "scripts", "runtime-paths.cjs"),
     path.join(standaloneRoot, "scripts", "runtime-paths.cjs"),
   );

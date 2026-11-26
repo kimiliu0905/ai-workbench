@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AgentRun, Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, withSqliteWrite } from "@/lib/db/prisma";
 import { calculateBilling, readBillingRequest, readBillingUsage, readProviderCostUsd } from "@/lib/monitor/billing";
 import { getBillingRules } from "@/lib/monitor/billing-settings";
 import { AgentHalt, type AgentSnapshot } from "./contracts";
@@ -33,11 +33,11 @@ export async function reserveSpendTx(tx: Prisma.TransactionClient, run: AgentRun
   return reservationId;
 }
 export async function reserveSpend(runId: string, token: string, label: string) {
-  return prisma.$transaction(async tx => {
+  return withSqliteWrite(() => prisma.$transaction(async tx => {
     const run = await tx.agentRun.findUniqueOrThrow({ where: { id: runId } });
     if (run.leaseToken !== token || run.status !== "RUNNING" || !run.leaseUntil || run.leaseUntil.getTime() < Date.now()) throw new AgentHalt("PAUSED", "任务已暂停，不能发送新请求。");
     return reserveSpendTx(tx, run, label);
-  });
+  }));
 }
 export type CostResponse = { model?: string | null; category?: string; responseBody: string; requestBody?: unknown; statusCode: number; success: boolean };
 export async function settleSpend(runId: string, token: string, reservationId: string | void, response?: CostResponse) {
@@ -50,12 +50,12 @@ export async function settleSpend(runId: string, token: string, reservationId: s
       cost = billing.costUsd; source = cost == null ? "unknown" : billing.source === "provider" ? "provider" : "estimated";
     } else if ([400, 401, 403, 404, 405, 422, 429].includes(response.statusCode)) { cost = 0; source = "estimated"; }
   }
-  await prisma.$transaction(async tx => {
+  await withSqliteWrite(() => prisma.$transaction(async tx => {
     const run = await tx.agentRun.findUniqueOrThrow({ where: { id: runId } });
     if (run.leaseToken !== token) return; // stop/pause drains; a different owner cannot commit.
     const events = await tx.agentEvent.findMany({ where: { runId, type: "cost" }, orderBy: { seq: "desc" } });
     const previous = events.find(event => (event.data as any)?.reservationId === reservationId)?.data as Cost | undefined;
     if (!previous || previous.source !== "reserved") return;
     await tx.agentEvent.create({ data: { runId, type: "cost", data: { ...previous, amount: cost ?? previous.amount, source } } });
-  });
+  }));
 }

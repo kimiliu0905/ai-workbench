@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { useStore } from "zustand";
 import { translationQueue } from "@/lib/translation/client-queue";
 import { contentLanguageLabels } from "@/lib/utils/content-language";
+import { translationPreviewCopy } from "@/lib/translation/preview";
 import { TranslationQueueItem } from "./translation-queue";
 
 export function TranslationBatchWorkspace({ batchId }: { batchId: string }) {
@@ -28,7 +29,7 @@ export function TranslationBatchWorkspace({ batchId }: { batchId: string }) {
         {item.images.length ? <>
           <div className="grid gap-4 sm:grid-cols-2">{item.images.map((image, index) => image.url && <a key={image.id} href={image.url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-xl border"><img src={image.url} alt={`译图 ${index + 1}`} className="h-auto w-full"/></a>)}</div>
           <a href={`/api/projects/${item.projectId}/export/images`} className="inline-block text-sm underline">下载已完成译图 ZIP</a>
-        </> : <p className="rounded-xl bg-muted/30 p-8 text-center text-sm text-muted-foreground">{item.status === "FAILED" || item.status === "CANCELED" || item.status === "INTERRUPTED" ? "尚无译图，请查看任务状态后继续或重试。" : "等待译图完成，预览将自动更新。"}</p>}
+        </> : <p className="rounded-xl bg-muted/30 p-8 text-center text-sm text-muted-foreground">{translationPreviewCopy(item)}</p>}
       </article>)}
     </> : <p role="status">正在读取翻译任务…</p>}
   </section>;

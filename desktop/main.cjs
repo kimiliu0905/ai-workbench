@@ -10,6 +10,11 @@ const { app, BrowserWindow, dialog, shell } = require("electron");
 
 const { toSqliteFileUrl } = require("../scripts/runtime-paths.cjs");
 const { createAgentBroker } = require("./agent-broker.cjs");
+const { backupDesktopData } = require("./backup.cjs");
+const { PRODUCT_NAME, USER_DATA_DIR_NAME, DESKTOP_BIND_HOST, DEFAULT_LOCK_BASE_URL } = require("./product.cjs");
+
+app.setName(PRODUCT_NAME);
+app.setPath("userData", process.env.APP_USER_DATA_DIR || path.join(app.getPath("appData"), USER_DATA_DIR_NAME));
 
 let mainWindow = null;
 let splashWindow = null;
@@ -34,6 +39,10 @@ function getServerEntry() {
 
 function getMigrationScript() {
   return path.join(getStandaloneRoot(), "scripts", "apply-prisma-migrations.cjs");
+}
+
+function getDesktopDefaultsScript() {
+  return path.join(getStandaloneRoot(), "scripts", "ensure-desktop-defaults.cjs");
 }
 
 async function ensureDir(dirPath) {
@@ -73,6 +82,16 @@ async function ensureDesktopRuntimeConfig() {
   };
 
   await writeJson(configPath, nextConfig);
+  const secretsPath = path.join(userDataDir, "config", "secrets.json");
+  const secrets = (await readJson(secretsPath)) ?? {};
+  const nextSecrets = {
+    passwordHash: typeof secrets.passwordHash === "string" ? secrets.passwordHash : "",
+    passwordVersion: Number.isInteger(secrets.passwordVersion) ? secrets.passwordVersion : 0,
+    openaiApiKey: typeof secrets.openaiApiKey === "string" ? secrets.openaiApiKey : "",
+    lockBaseUrl: typeof secrets.lockBaseUrl === "string" && secrets.lockBaseUrl ? secrets.lockBaseUrl : DEFAULT_LOCK_BASE_URL,
+  };
+  await writeJson(secretsPath, nextSecrets);
+  try { await fsp.chmod(secretsPath, 0o600); } catch { /* Windows may ignore the mode. */ }
 
   return {
     userDataDir,
@@ -80,6 +99,8 @@ async function ensureDesktopRuntimeConfig() {
     storageDir,
     databasePath: path.join(prismaDir, "dev.db"),
     appSecret,
+    secretsPath,
+    secrets: nextSecrets,
   };
 }
 
@@ -88,13 +109,18 @@ function getRuntimeEnv(runtime, port) {
     ...process.env,
     NODE_ENV: "production",
     PORT: String(port),
-    HOSTNAME: "127.0.0.1",
+    HOSTNAME: DESKTOP_BIND_HOST,
     APP_RUNTIME: "desktop",
     APP_USER_DATA_DIR: runtime.userDataDir,
     DATABASE_URL: toSqliteFileUrl(runtime.databasePath),
     STORAGE_ROOT: runtime.storageDir,
     APP_SECRET: runtime.appSecret,
-    NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME || "MxPage",
+    NEXT_PUBLIC_APP_NAME: PRODUCT_NAME,
+    WORKBENCH_SECRETS_PATH: runtime.secretsPath,
+    WORKBENCH_PASSWORD_HASH: runtime.secrets.passwordHash,
+    WORKBENCH_PASSWORD_VERSION: String(runtime.secrets.passwordVersion),
+    OPENAI_API_KEY: runtime.secrets.openaiApiKey || process.env.OPENAI_API_KEY || "",
+    LOCK_BASE_URL: runtime.secrets.lockBaseUrl || DEFAULT_LOCK_BASE_URL,
   };
 }
 
@@ -157,7 +183,7 @@ function findAvailablePort(preferredPort = 3000, maxAttempts = 20) {
         });
       });
 
-      tester.listen(port, "127.0.0.1");
+      tester.listen(port, DESKTOP_BIND_HOST);
     });
 
   return tryPort(preferredPort, maxAttempts);
@@ -212,6 +238,7 @@ async function startNextServer(runtime) {
     env: {
       ...env,
       ELECTRON_RUN_AS_NODE: "1",
+      WORKBENCH_DESKTOP_BROKER: "1",
     },
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe", "ipc"],
@@ -227,14 +254,14 @@ async function startNextServer(runtime) {
   serverProcess.on("exit", (code) => {
     if (!isQuitting && code !== 0) {
       dialog.showErrorBox(
-        "MxPage 启动失败",
+        `${PRODUCT_NAME} 启动失败`,
         serverErrors || `内置服务异常退出，退出码：${code}`
       );
       app.quit();
     }
   });
 
-  serverUrl = `http://127.0.0.1:${port}`;
+  serverUrl = `http://${DESKTOP_BIND_HOST}:${port}`;
   await waitForServer(serverUrl);
   return serverUrl;
 }
@@ -251,7 +278,7 @@ function createSplashWindow() {
     show: false,
     center: true,
     backgroundColor: "#111827",
-    title: "MxPage",
+    title: PRODUCT_NAME,
     icon: getWindowIcon(),
     webPreferences: {
       contextIsolation: true,
@@ -269,7 +296,7 @@ function createSplashWindow() {
           http-equiv="Content-Security-Policy"
           content="default-src 'self' 'unsafe-inline' data:;"
         />
-        <title>MxPage</title>
+        <title>${PRODUCT_NAME}</title>
         <style>
           * { box-sizing: border-box; }
           html, body {
@@ -342,8 +369,8 @@ function createSplashWindow() {
       <body>
         <div class="wrap">
           <div class="card">
-            <div class="title">MxPage</div>
-            <div class="desc">AI e-commerce detail page generation and editing workspace</div>
+            <div class="title">${PRODUCT_NAME}</div>
+            <div class="desc">装在这台电脑上的电商图文工作台</div>
             <div class="status" id="status">正在启动应用...</div>
             <div class="bar"><div></div></div>
             <div class="foot">请稍候，正在初始化本地服务与数据环境</div>
@@ -390,7 +417,7 @@ function createMainWindow(url) {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: "#f5f5f5",
-    title: "MxPage",
+    title: PRODUCT_NAME,
     icon: getWindowIcon(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -454,6 +481,7 @@ async function bootstrapDesktopApp() {
   updateSplashStatus("正在初始化数据库...");
   console.time("desktop:migration");
   await spawnNodeScript(getMigrationScript(), getRuntimeEnv(runtime, 3000));
+  await spawnNodeScript(getDesktopDefaultsScript(), getRuntimeEnv(runtime, 3000));
   console.timeEnd("desktop:migration");
 
   updateSplashStatus("正在启动本地服务...");
@@ -464,6 +492,13 @@ async function bootstrapDesktopApp() {
   updateSplashStatus("正在加载界面...");
   console.time("desktop:window");
   await createMainWindow(url);
+  const backupRoot = path.join(path.dirname(runtime.userDataDir), `${USER_DATA_DIR_NAME}-备份`);
+  void backupDesktopData(runtime.userDataDir, backupRoot).catch(error => {
+    console.error("Local backup skipped", error instanceof Error ? error.message : error);
+  });
+  setInterval(() => {
+    void backupDesktopData(runtime.userDataDir, backupRoot).catch(() => {});
+  }, 24 * 60 * 60 * 1000).unref?.();
   console.timeEnd("desktop:window");
 
   console.timeEnd("desktop:total");
@@ -490,7 +525,7 @@ app.on("activate", async () => {
 app.whenReady().then(() => {
   bootstrapDesktopApp().catch((error) => {
     dialog.showErrorBox(
-      "MxPage 启动失败",
+      `${PRODUCT_NAME} 启动失败`,
       error instanceof Error ? error.message : "未知错误"
     );
     app.quit();

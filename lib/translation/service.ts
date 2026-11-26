@@ -9,6 +9,7 @@ import { saveGeneratedImage } from "@/lib/storage/asset-manager";
 import { Prisma } from "@prisma/client";
 import { startTiming, touchTiming } from "@/lib/tasks/timing";
 import type { ImageGenerationRequest } from "@/lib/ai/provider-client";
+import { planImageSize, readImageSize } from "@/lib/image/size-policy";
 import { buildTranslationPrompt, translationRules } from "./prompt";
 import { assertNoDetailRun } from "@/lib/detail-runs/lock";
 import { TRANSLATION_WORKFLOW, translationSummary, type TranslationImage, type TranslationProgress } from "./contracts";
@@ -138,12 +139,20 @@ export async function runTranslationProject(options: {
           const sourceAsset = sources.find(asset => asset.id === image.sourceAssetId);
           if (!sourceAsset) throw new Error("原图文件不存在，请重新上传。");
           const bytes = await readStorageFile(sourceAsset.filePath);
+          const sourceSize = await readImageSize(bytes);
+          const project = await prisma.project.findUnique({ where: { id: projectId }, select: { modelSnapshot: true } });
+          const savedTarget = (project?.modelSnapshot as { targetSize?: { width?: number; height?: number } } | null)?.targetSize;
+          const target = savedTarget?.width && savedTarget.height ? { width: savedTarget.width, height: savedTarget.height } : sourceSize;
+          const plan = planImageSize(target.width, target.height, model.modelId);
+          if (!savedTarget?.width) {
+            await prisma.project.update({ where: { id: projectId }, data: { modelSnapshot: { ...(project?.modelSnapshot as Record<string, unknown> || {}), targetSize: target } } });
+          }
           image.status = "RUNNING"; if (!image.upstreamTask) image.attempts++; image.error = undefined;
           await save();
           await transaction(async tx => { await tx.pageSection.update({ where: { id: image.sectionId }, data: { status: "GENERATING" } }); });
           if (lost || endpointUnavailable || !await options.active()) { image.status = "QUEUED"; if (!image.upstreamTask) image.attempts--; await save(); return; }
           sent = true;
-          const source = await adapter.generateImageOnce({ model: model.modelId, prompt, referenceImages: [`data:${sourceAsset.mimeType || "image/png"};base64,${bytes.toString("base64")}`], size: "auto", quality: options.quality, timeoutMs: 180000, monitor: { projectId, sectionId: image.sectionId, runId: id, operation: "translate_image" },
+          const source = await adapter.generateImageOnce({ model: model.modelId, prompt, referenceImages: [`data:${sourceAsset.mimeType || "image/png"};base64,${bytes.toString("base64")}`], size: `${plan.requestWidth}x${plan.requestHeight}`, quality: options.quality, timeoutMs: 180000, monitor: { projectId, sectionId: image.sectionId, runId: id, operation: "translate_image" },
             upstreamTask: image.upstreamTask,
             onUpstreamTask: async task => { image.upstreamTask = task; await save(); },
             beforeSubmit: async () => {
@@ -151,7 +160,7 @@ export async function runTranslationProject(options: {
               if (endpointUnavailable || !await options.active()) throw new TranslationOwnershipLost("翻译任务已停止，未提交新图片请求。");
             },
           });
-          const asset = await saveGeneratedImage({ projectId, sectionId: image.sectionId, prompt, source, metadata: { translationTaskId: id, sourceAssetId: image.sourceAssetId, language: options.language, usedModel: model.modelId } });
+          const asset = await saveGeneratedImage({ projectId, sectionId: image.sectionId, prompt, source, metadata: { translationTaskId: id, sourceAssetId: image.sourceAssetId, language: options.language, usedModel: model.modelId, targetSize: target, requestSize: { width: plan.requestWidth, height: plan.requestHeight } }, targetSize: target });
           await transaction(async tx => {
             const previous = await tx.sectionVersion.findFirst({ where: { sectionId: image.sectionId }, orderBy: { versionNumber: "desc" } });
             await tx.sectionVersion.updateMany({ where: { sectionId: image.sectionId }, data: { isActive: false } });

@@ -6,6 +6,7 @@ const nextConfig = {
   distDir,
   ...(process.env.MXPAGE_TEST_TSCONFIG ? { typescript: { tsconfigPath: process.env.MXPAGE_TEST_TSCONFIG } } : {}),
   experimental: {
+    instrumentationHook: true,
     ...(distDir === ".next-desktop" ? { cpus: 2 } : {}),
     serverComponentsExternalPackages: ["sharp", "deepagents", "langchain", "langsmith", "@langchain/core", "@langchain/openai", "@langchain/langgraph", "@langchain/langgraph-checkpoint", "@modelcontextprotocol/sdk", "pdfjs-dist", "mammoth", "exceljs", "docx", "pdf-lib", "@pdf-lib/fontkit"],
     serverActions: {

@@ -23,7 +23,7 @@ test("all persisted work types appear with usable progress and project links", (
   assert.deepEqual(new Set(rows.map(row => row.kind)), new Set(["detail", "xhs", "image", "translation", "analysis", "export"]));
   assert.equal(rows.find(row => row.id === "run:run-1")?.completed, 1);
   assert.equal(rows.find(row => row.id === "run:run-1")?.total, 3);
-  assert.equal(rows.find(row => row.id === "run:xhs")?.href, "/xiaohongshu?project=product");
+  assert.equal(rows.find(row => row.id === "run:xhs")?.href, "/projects/product/editor");
   assert.equal(rows.find(row => row.id === "task:translation")?.completed, 1);
   assert.equal(rows.find(row => row.id === "task:export")?.completed, 1);
 });

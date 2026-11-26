@@ -6,6 +6,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
+import { planImageSize } from "../lib/image/size-policy";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -70,7 +71,9 @@ before(async () => {
     assert.equal(String(url), "https://translation.test/v1/images/edits", "No chat, planning, review or alternate image endpoints");
     assert.ok(init?.body instanceof FormData);
     const form = init.body;
-    assert.equal(form.get("size"), "auto");
+    const plan = planImageSize(32, 48, "gpt-image-2.5-flare");
+    assert.equal(plan.legal, false);
+    assert.equal(form.get("size"), `${plan.requestWidth}x${plan.requestHeight}`);
     assert.equal(form.getAll("image").length, 1);
     assert.equal(form.getAll("image[]").length, 0);
     const call = { prompt: String(form.get("prompt")), model: String(form.get("model")), quality: String(form.get("quality")), bytes: Buffer.from(await (form.get("image") as Blob).arrayBuffer()) };
