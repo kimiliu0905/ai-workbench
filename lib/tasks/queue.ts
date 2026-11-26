@@ -9,7 +9,7 @@ export type TaskQueueItem = Partial<TaskDuration> & {
   completed: number; total: number; failed: number; unit: string; error?: string;
   pendingQuery?: number; uncertain?: number; canQueryImage?: boolean; imageUrl?: string;
 };
-export const queueKindLabels: Record<QueueKind, string> = { detail: "详情页", translation: "翻译", xhs: "小红书", image: "图片处理", analysis: "分析规划", export: "导出", batch: "批量创作" };
+export const queueKindLabels: Record<QueueKind, string> = { detail: "详情页", translation: "翻译", xhs: "图文任务", image: "图片处理", analysis: "分析规划", export: "导出", batch: "批量创作" };
 export const taskIsRunning = (item: Pick<TaskQueueItem, "status">) => ["PENDING", "RUNNING"].includes(item.status);
 export const taskNeedsAttention = (item: Pick<TaskQueueItem, "status"> & Partial<Pick<TaskQueueItem, "failed">>) => ["WAITING_INPUT", "WAITING_PROMPTS", "PARTIAL", "FAILED", "INTERRUPTED", "PENDING_QUERY", "UNCERTAIN"].includes(item.status) || (item.failed ?? 0) > 0;
 export const taskShouldShow = (item: Pick<TaskQueueItem, "status"> & Partial<Pick<TaskQueueItem, "failed">>) => taskIsRunning(item) || taskNeedsAttention(item);
@@ -61,7 +61,7 @@ export function buildTaskQueue(tasks: QueueTaskRow[], runs: QueueRunRow[], now =
       return child ? { ...item, status: child.status, message: child.stage } : item;
     }), images = list(output.images);
     const kind: QueueKind = translation || task.taskType === "TRANSLATE_PAGE" || input.editMode === "translate" ? "translation" : task.taskType === "XHS_GENERATE" ? "xhs" : batch || task.taskType === "BATCH_CREATE" ? "batch" : ["ANALYZE", "PLAN"].includes(task.taskType) ? "analysis" : task.taskType === "EXPORT" ? "export" : "image";
-    const labels: Record<string, string> = { ANALYZE: "分析商品", PLAN: "规划页面", GENERATE: "生成图片", REGENERATE: "修改图片", EXPORT: "导出作品", BATCH_CREATE: "批量创作", TRANSLATE_PAGE: "翻译图片", XHS_GENERATE: "生成小红书图文", QA_CHECK: "检查图片" };
+    const labels: Record<string, string> = { ANALYZE: "分析商品", PLAN: "规划页面", GENERATE: "生成图片", REGENERATE: "修改图片", EXPORT: "导出作品", BATCH_CREATE: "批量创作", TRANSLATE_PAGE: "翻译图片", XHS_GENERATE: "生成图文", QA_CHECK: "检查图片" };
     // Display a stale worker as interrupted without restarting or mutating paid work.
     const heartbeatJob = batch || input.workflow === "image-translation-v1" || !!output.heartbeatAt;
     const staleAfter = heartbeatJob ? 90_000 : 30 * 60_000;

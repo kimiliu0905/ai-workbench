@@ -30,9 +30,10 @@ function ProfileEditor() {
         <Dialog.Title className="text-xl font-semibold">编辑个人资料</Dialog.Title>
         <Dialog.Description className="mt-2 text-sm text-muted-foreground">头像和名称保存在这台电脑上，供这台工作台使用。</Dialog.Description>
         <form className="mt-6 space-y-5" onSubmit={event => {
-          event.preventDefault(); setError("");
-          try { saveProfile(draft); setOpen(false); toast.success("个人资料已保存"); }
-          catch (cause) { setError((cause as { issues?: Array<{ message: string }> }).issues?.[0]?.message || "保存失败，请检查这台电脑是否允许本地保存。"); }
+          event.preventDefault(); setError(""); setBusy(true);
+          saveProfile(draft).then(() => { setOpen(false); toast.success("个人资料已保存"); }).catch(cause => {
+            setError((cause as { issues?: Array<{ message: string }> }).issues?.[0]?.message || (cause instanceof Error ? cause.message : "保存失败，请检查这台电脑是否允许本地保存。"));
+          }).finally(() => setBusy(false));
         }}>
           <div className="flex items-center gap-4">
             <UserAvatar profile={draft} className="h-20 w-20" />

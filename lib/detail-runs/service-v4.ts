@@ -90,8 +90,13 @@ async function imageData(assetId: string, projectId: string) {
   const bytes = await sharp(await readStorageFile(asset.filePath)).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).png().toBuffer();
   return `data:image/png;base64,${bytes.toString("base64")}`;
 }
+async function interruptExpiredRun(projectId: string, runId?: string) {
+  const stale = await prisma.detailRun.findFirst({ where: { projectId, ...(runId ? { id: runId } : {}), status: { in: ["PENDING", "RUNNING"] }, OR: [{ leaseUntil: { lte: new Date() } }, { leaseUntil: null }] }, select: { id: true } });
+  if (!stale) return;
+  await prisma.detailRun.updateMany({ where: { projectId, ...(runId ? { id: runId } : {}), status: { in: ["PENDING", "RUNNING"] }, OR: [{ leaseUntil: { lte: new Date() } }, { leaseUntil: null }] }, data: { status: "INTERRUPTED", stage: "运行已中断，可继续", leaseToken: null, leaseUntil: null } });
+}
 async function assertIdle(projectId: string) {
-  await prisma.detailRun.updateMany({ where: { projectId, status: { in: ["RUNNING", "PENDING"] }, leaseUntil: { lt: new Date() } }, data: { status: "INTERRUPTED", stage: "运行已中断，可继续", leaseToken: null, leaseUntil: null } });
+  await interruptExpiredRun(projectId);
   if (await prisma.detailRun.findFirst({ where: { projectId, OR: [{ status: { in: active } }, { leaseToken: { not: null }, leaseUntil: { gt: new Date() } }] } })) throw new Error("当前项目仍有任务或已发出的请求正在收尾，请稍后继续。");
 }
 
@@ -107,7 +112,7 @@ function hasResolvedReviewError(cp: V4Checkpoint) {
 }
 
 export async function getV4DetailRun(projectId: string, runId?: string) {
-  await prisma.detailRun.updateMany({ where: { projectId, ...(runId ? { id: runId } : {}), status: { in: ["PENDING", "RUNNING"] }, OR: [{ leaseUntil: { lte: new Date() } }, { leaseUntil: null }] }, data: { status: "INTERRUPTED", stage: "运行已中断，可继续", leaseToken: null, leaseUntil: null } });
+  await interruptExpiredRun(projectId, runId);
   let run = await prisma.detailRun.findFirst({ where: { projectId, ...(runId ? { id: runId } : {}) }, orderBy: { createdAt: "desc" } });
   if (!run) return null;
   const checkpoint = run.checkpoint as unknown as V4Checkpoint;

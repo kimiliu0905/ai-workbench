@@ -164,8 +164,8 @@ test("desktop startup creates the default provider without storing the API key",
   assert.match(hook, /ensureDesktopDefaults/);
   assert.match(layout, /ensureDesktopDefaults/);
   const { sqliteDatabaseUrl } = await import("../lib/db/prisma");
-  assert.equal(sqliteDatabaseUrl("file:/tmp/workbench.db"), "file:/tmp/workbench.db?socket_timeout=60");
-  assert.equal(sqliteDatabaseUrl("file:/tmp/workbench.db?mode=rw"), "file:/tmp/workbench.db?mode=rw&socket_timeout=60");
+  assert.equal(sqliteDatabaseUrl("file:/tmp/workbench.db"), "file:/tmp/workbench.db?socket_timeout=60&connection_limit=1");
+  assert.equal(sqliteDatabaseUrl("file:/tmp/workbench.db?mode=rw"), "file:/tmp/workbench.db?mode=rw&socket_timeout=60&connection_limit=1");
   assert.equal(sqliteDatabaseUrl("postgresql://localhost/app"), "postgresql://localhost/app");
 
   const previousRuntime = process.env.APP_RUNTIME;
@@ -268,6 +268,10 @@ test("product acceptance gaps stay closed in source", async () => {
   const xhsEdit = await readFile("app/xiaohongshu/edit/page.tsx", "utf8");
   const xhsGenerate = await readFile("app/xiaohongshu/generate/page.tsx", "utf8");
   const xhsReview = await readFile("app/xiaohongshu/review/page.tsx", "utf8");
+  const libraryPage = await readFile("app/library/page.tsx", "utf8");
+  const profileStore = await readFile("components/settings/profile-store.ts", "utf8");
+  assert.match(libraryPage, /redirect\("\/"\)/);
+  assert.doesNotMatch(profileStore, /localStorage/);
   assert.match(history, /value !== "xiaohongshu"/);
   for (const page of [xhsEdit, xhsGenerate, xhsReview]) assert.match(page, /redirect\("\/"\)/);
   const setPage = await readFile("app/set/page.tsx", "utf8");
@@ -280,4 +284,9 @@ test("product acceptance gaps stay closed in source", async () => {
   assert.match(compose, /继续修改/);
   assert.match(compose, /套用模板/);
   assert.match(compose, /版本列表/);
+  const { getWorkbenchProfile, saveWorkbenchProfile } = await import("../lib/workbench/profile");
+  assert.equal((await getWorkbenchProfile()).name, "椰子酱");
+  assert.equal((await saveWorkbenchProfile({ name: "椰子酱", username: "kimi_desk", avatar: null })).username, "kimi_desk");
+  assert.equal((await getWorkbenchProfile()).username, "kimi_desk");
+  assert.equal(await db.userProfile.count(), 1);
 });

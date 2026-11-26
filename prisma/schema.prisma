@@ -351,6 +351,14 @@ model WorkbenchSettings {
   updatedAt    DateTime @updatedAt
 }
 
+model UserProfile {
+  id        String   @id @default("default")
+  name      String   @default("椰子酱")
+  username  String   @default("yezijian")
+  avatar    String?
+  updatedAt DateTime @updatedAt
+}
+
 model ChatSession {
   id        String        @id @default(cuid())
   title     String        @default("新对话")

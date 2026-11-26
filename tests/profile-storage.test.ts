@@ -1,26 +1,14 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { prepareAvatar, saveProfile } from "../components/settings/profile-store";
-import { defaultProfile, PROFILE_STORAGE_KEY, readProfile } from "../lib/profile";
+import { prepareAvatar } from "../components/settings/profile-store";
+import { profileSchema } from "../lib/profile";
 
-test("profile save persists validated data and surfaces storage failures", () => {
-  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
-  const storage = new Map<string, string>();
-  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
-    setItem(key: string, value: string) { storage.set(key, value); },
-  } });
-  try {
-    const draft = { ...defaultProfile, name: "新名字", username: "new_name" };
-    saveProfile(draft);
-    assert.deepEqual(readProfile(storage.get(PROFILE_STORAGE_KEY)!), draft);
-    assert.throws(() => saveProfile({ ...draft, name: " " }));
-    assert.deepEqual(readProfile(storage.get(PROFILE_STORAGE_KEY)!), draft);
-    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { setItem() { throw new Error("quota exceeded"); } } });
-    assert.throws(() => saveProfile(defaultProfile), /quota exceeded/);
-  } finally {
-    if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor);
-    else Reflect.deleteProperty(globalThis, "localStorage");
-  }
+test("profile save no longer uses browser localStorage", async () => {
+  const source = await readFile("components/settings/profile-store.ts", "utf8");
+  assert.doesNotMatch(source, /localStorage|mxpage:profile/);
+  assert.match(source, /\/api\/workbench\/profile/);
+  assert.equal(profileSchema.safeParse({ name: " ", username: "yezijian", avatar: null }).success, false);
 });
 
 test("avatars reject unsupported and oversized files before decoding", async () => {

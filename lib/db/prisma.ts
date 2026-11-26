@@ -4,10 +4,17 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+function withSqliteParam(url: string, key: string, value: string) {
+  if (new RegExp(`[?&]${key}=`).test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}${key}=${value}`;
+}
+
 export function sqliteDatabaseUrl(raw = process.env.DATABASE_URL) {
   const url = raw?.trim() || "file:./dev.db";
-  if (!/^file:|^sqlite:/i.test(url) || /[?&]socket_timeout=/.test(url)) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}socket_timeout=60`;
+  if (!/^file:|^sqlite:/i.test(url)) return url;
+  // One connection avoids cross-connection SQLite lock waits. Parallel interactive
+  // transactions were holding shared locks until the 60s socket timeout.
+  return withSqliteParam(withSqliteParam(url, "socket_timeout", "60"), "connection_limit", "1");
 }
 
 export const prisma =
