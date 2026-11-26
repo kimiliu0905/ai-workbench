@@ -12,7 +12,7 @@ try {
   if (migration.status !== 0) process.exitCode = migration.status || 1;
   else {
     const tests = fs.readdirSync('tests').filter(name => /\.test\.tsx?$/.test(name)).sort().map(name => path.join('tests', name));
-    const result = spawnSync(process.execPath, ['--import', 'tsx', '--test', ...tests], { env, stdio: 'inherit', windowsHide: true });
+    const result = spawnSync(process.execPath, ['--import', 'tsx', '--test', '--test-concurrency=2', ...tests], { env, stdio: 'inherit', windowsHide: true });
     if (result.error) throw result.error;
     process.exitCode = result.status || (result.signal ? 1 : 0);
   }

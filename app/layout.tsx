@@ -5,6 +5,7 @@ import "./globals.css";
 import "@/components/editor/taobao-product-preview.css";
 
 import { WorkbenchFrame } from "@/components/layout/workbench-frame";
+import { WorkbenchPoller } from "@/components/layout/workbench-poller";
 import { ProviderCredentialFetchBridge } from "@/components/layout/provider-credential-fetch-bridge";
 import { ThemeScript } from "@/components/layout/theme-script";
 import { BrandConsole } from "@/components/shared/brand-console";
@@ -41,6 +42,7 @@ export default function RootLayout({
         <ChunkReloadGuard />
         <BrandConsole />
         <ProviderCredentialFetchBridge />
+        <WorkbenchPoller />
         <ImagePreviewProvider>
           <WorkbenchFrame>{children}</WorkbenchFrame>
         </ImagePreviewProvider>
