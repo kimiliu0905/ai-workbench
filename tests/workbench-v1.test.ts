@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { after, before, test } from "node:test";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -139,4 +140,100 @@ test("chat attachments are not library assets and the shell hides removed entrie
   const login = await readFile("app/login/page.tsx", "utf8");
   assert.match(login, /输入共享口令进入/);
   assert.doesNotMatch(login, /apiKey|API Key|演示口令/);
+});
+
+test("desktop startup creates the default provider without storing the API key", async () => {
+  const config = await readFile("next.config.mjs", "utf8");
+  const main = await readFile("desktop/main.cjs", "utf8");
+  const hook = await readFile("instrumentation.ts", "utf8");
+  const layout = await readFile("app/layout.tsx", "utf8");
+  assert.match(config, /instrumentationHook:\s*true/);
+  assert.match(main, /ensure-desktop-defaults\.cjs/);
+  assert.match(hook, /ensureDesktopDefaults/);
+  assert.match(layout, /ensureDesktopDefaults/);
+  const { sqliteDatabaseUrl } = await import("../lib/db/prisma");
+  assert.equal(sqliteDatabaseUrl("file:/tmp/workbench.db"), "file:/tmp/workbench.db?socket_timeout=60");
+  assert.equal(sqliteDatabaseUrl("file:/tmp/workbench.db?mode=rw"), "file:/tmp/workbench.db?mode=rw&socket_timeout=60");
+  assert.equal(sqliteDatabaseUrl("postgresql://localhost/app"), "postgresql://localhost/app");
+
+  const previousRuntime = process.env.APP_RUNTIME;
+  const previousLock = process.env.LOCK_BASE_URL;
+  const previousKey = process.env.OPENAI_API_KEY;
+  process.env.APP_RUNTIME = "desktop";
+  process.env.LOCK_BASE_URL = "https://lock.example/v1";
+  process.env.OPENAI_API_KEY = "should-not-be-stored";
+  try {
+    const { ensureDesktopDefaults } = await import("../lib/workbench/settings");
+    await ensureDesktopDefaults();
+    const settings = await db.workbenchSettings.findUnique({ where: { id: "default" } });
+    assert.equal(settings?.textModelId, "gpt-6-luna");
+    assert.equal(settings?.imageModelId, "gpt-image-2.6-flare");
+    const provider = await db.providerConfig.findFirst({ where: { isActive: true }, include: { models: true } });
+    assert.ok(provider);
+    assert.equal(provider.apiKeyEncrypted, "");
+    assert.equal(provider.baseUrl, "https://lock.example/v1");
+    assert.equal(provider.models.some(model => model.modelId === "gpt-6-luna" && model.isDefaultAnalysis), true);
+    assert.equal(provider.models.some(model => model.modelId === "gpt-image-2.6-flare" && model.isDefaultHeroImage), true);
+    assert.equal(JSON.stringify(provider).includes("should-not-be-stored"), false);
+    await ensureDesktopDefaults();
+    assert.equal(await db.providerConfig.count({ where: { isActive: true } }), 1);
+    assert.equal(await db.workbenchSettings.count(), 1);
+  } finally {
+    if (previousRuntime === undefined) delete process.env.APP_RUNTIME;
+    else process.env.APP_RUNTIME = previousRuntime;
+    if (previousLock === undefined) delete process.env.LOCK_BASE_URL;
+    else process.env.LOCK_BASE_URL = previousLock;
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousKey;
+  }
+
+  const seedFile = path.join(directory, "desktop-seed.db");
+  const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite");
+  const sqlite = new DatabaseSync(seedFile);
+  const migrations = path.resolve("prisma/migrations");
+  for (const entry of (await readdir(migrations, { withFileTypes: true })).filter(item => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+    sqlite.exec(await readFile(path.join(migrations, entry.name, "migration.sql"), "utf8"));
+  }
+  sqlite.close();
+  const seeded = spawnSync(process.execPath, ["scripts/ensure-desktop-defaults.cjs"], {
+    cwd: process.cwd(),
+    env: { ...process.env, APP_RUNTIME: "desktop", DATABASE_URL: `file:${seedFile.replaceAll("\\", "/")}`, OPENAI_API_KEY: "should-not-be-stored", LOCK_BASE_URL: "https://lock.example/v1" },
+    encoding: "utf8",
+  });
+  assert.equal(seeded.status, 0, seeded.stderr);
+  const check = new DatabaseSync(seedFile);
+  const row = check.prepare('SELECT "apiKeyEncrypted", "baseUrl" FROM "ProviderConfig" WHERE "isActive" = 1').get() as { apiKeyEncrypted: string; baseUrl: string };
+  const settingsRow = check.prepare('SELECT "textModelId", "imageModelId" FROM "WorkbenchSettings" WHERE id = ?').get("default") as { textModelId: string; imageModelId: string };
+  check.close();
+  assert.equal(row.apiKeyEncrypted, "");
+  assert.equal(row.baseUrl, "https://lock.example/v1");
+  assert.equal(settingsRow.textModelId, "gpt-6-luna");
+  assert.equal(settingsRow.imageModelId, "gpt-image-2.6-flare");
+});
+
+test("profile hides the consumption heatmap and a set can copy a library image", async () => {
+  const profile = await readFile("app/settings/profile/page.tsx", "utf8");
+  const profileView = await readFile("components/settings/user-profile.tsx", "utf8");
+  const frame = await readFile("components/layout/workbench-frame.tsx", "utf8");
+  const setPage = await readFile("app/set/page.tsx", "utf8");
+  assert.doesNotMatch(profile, /listApiUsageEntries|buildUsageActivity|消耗热力图/);
+  assert.doesNotMatch(profileView, /最近12个月消耗热力图|消耗记录/);
+  assert.match(frame, /return <AppShell>\{children\}<\/AppShell>/);
+  assert.doesNotMatch(frame, /正在打开工作台/);
+  assert.match(setPage, /从素材库点选/);
+  assert.match(setPage, /library-import/);
+
+  const library = await import("../lib/workbench/library");
+  const png = await sharp({ create: { width: 24, height: 24, channels: 3, background: "#abc" } }).png().toBuffer();
+  const saved = await library.addLibraryAsset({ name: "套图素材.png", source: "upload", buffer: png, mimeType: "image/png" });
+  const before = await db.libraryAsset.count();
+  const project = await db.project.create({ data: { name: "套图任务", platform: "general_ecommerce", style: "generic_clean" } });
+  const copied = await library.importLibraryAssetToProject(saved.id, project.id, 0);
+  assert.equal(copied.projectId, project.id);
+  assert.equal(copied.type, "MAIN");
+  assert.equal(await db.libraryAsset.count(), before);
+  const replacement = await sharp({ create: { width: 24, height: 24, channels: 3, background: "#111" } }).png().toBuffer();
+  await library.replaceLibraryAsset(saved.id, replacement, "image/png");
+  const taskBytes = await readFile(path.join(process.env.STORAGE_ROOT || "", copied.filePath));
+  assert.equal(taskBytes.equals(png), true);
 });

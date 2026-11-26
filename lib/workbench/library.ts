@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/db/prisma";
+import { saveUploadAsset } from "@/lib/storage/asset-manager";
 import { readImageSize } from "@/lib/image/size-policy";
 import type { LibrarySource } from "@/lib/product";
 
@@ -51,6 +52,22 @@ export async function listLibraryAssets(query?: { q?: string; source?: string })
       ...(query?.q ? { name: { contains: query.q } } : {}),
     },
     orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function importLibraryAssetToProject(libraryId: string, projectId: string, sortOrder: number) {
+  const asset = await prisma.libraryAsset.findUnique({ where: { id: libraryId } });
+  if (!asset) throw new Error("素材不存在。");
+  const buffer = await readLibraryBytes(asset.filePath);
+  const ext = asset.mimeType.includes("webp") ? "webp" : asset.mimeType.includes("jpeg") || asset.mimeType.includes("jpg") ? "jpg" : "png";
+  return saveUploadAsset({
+    projectId,
+    type: "MAIN",
+    fileName: `${asset.name}.${ext}`,
+    mimeType: asset.mimeType,
+    fileBuffer: buffer,
+    sortOrder,
+    uploadKey: `library:${libraryId}:${sortOrder}`,
   });
 }
 

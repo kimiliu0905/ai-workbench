@@ -12,6 +12,7 @@ import { BrandConsole } from "@/components/shared/brand-console";
 import { ChunkReloadGuard } from "@/components/shared/chunk-reload-guard";
 import { ImagePreviewProvider } from "@/components/shared/image-preview-provider";
 import { productDescription, productTitle, publicSiteUrl } from "@/lib/seo";
+import { ensureDesktopDefaults } from "@/lib/workbench/settings";
 
 export const metadata: Metadata = {
   metadataBase: publicSiteUrl(),
@@ -30,11 +31,12 @@ export const metadata: Metadata = {
   description: productDescription,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  if (process.env.APP_RUNTIME === "desktop") await ensureDesktopDefaults();
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body suppressHydrationWarning>

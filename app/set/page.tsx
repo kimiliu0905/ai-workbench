@@ -16,6 +16,8 @@ async function read(response: Response) {
 
 export default function SetPage() {
   const [files, setFiles] = useState<File[]>([]);
+  const [library, setLibrary] = useState<Array<{ id: string; name: string; url: string }>>([]);
+  const [picked, setPicked] = useState<string[]>([]);
   const [facts, setFacts] = useState("");
   const [mode, setMode] = useState<"hero" | "detail" | "both">("both");
   const [heroCount, setHeroCount] = useState(4);
@@ -33,6 +35,7 @@ export default function SetPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => { fetch("/api/library").then(read).then(setLibrary).catch(() => undefined); }, []);
   useEffect(() => {
     const timer = setTimeout(() => {
       fetch("/api/workbench/size", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ width, height }) }).then(read).then(plan => setNote(plan.legal ? "" : plan.note)).catch(() => undefined);
@@ -57,14 +60,18 @@ export default function SetPage() {
   async function start() {
     const heroes = mode === "detail" ? 0 : heroCount;
     const details = mode === "hero" ? 0 : detailCount;
-    if (!files.length) { setError("至少上传或选择一张商品图。"); return; }
+    if (!files.length && !picked.length) { setError("至少上传或从素材库选择一张商品图。"); return; }
     if (heroes + details < 1) { setError("主图和详情不能同时为 0。"); return; }
     setBusy(true);
     setError("");
     try {
-      const project = await read(await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: files[0].name.replace(/\.[^.]+$/, "").slice(0, 80).padEnd(2, "商品"), platform, style: "generic_clean", description: facts }) }));
+      const libraryName = library.find(item => item.id === picked[0])?.name;
+      const project = await read(await fetch("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: (files[0]?.name.replace(/\.[^.]+$/, "") || libraryName || "商品").slice(0, 80).padEnd(2, "商品"), platform, style: "generic_clean", description: facts }) }));
       const plan = await read(await fetch("/api/workbench/size", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ width, height }) }));
       await read(await fetch(`/api/projects/${project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description: facts, modelSnapshot: { workType: "set", targetSize: { width, height }, platform } }) }));
+      for (const [index, libraryId] of picked.entries()) {
+        await read(await fetch(`/api/projects/${project.id}/library-import`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ libraryId, sortOrder: index }) }));
+      }
       for (const file of files) {
         const form = new FormData();
         form.set("file", file);
@@ -111,7 +118,14 @@ export default function SetPage() {
       </div>
       <ol className="mt-3 flex gap-3 text-xs text-muted-foreground"><li className={step === "准备" ? "font-semibold text-foreground" : ""}>1 准备</li><li className={step === "确认分镜" ? "font-semibold text-foreground" : ""}>2 确认分镜</li><li className={step === "生图" ? "font-semibold text-foreground" : ""}>3 生图</li><li className={step === "结果" ? "font-semibold text-foreground" : ""}>4 结果</li></ol>
       {!run && <div className="mt-4 space-y-4">
-        <label className="block rounded-2xl border border-dashed bg-white p-6 text-center text-sm">上传或从素材库点选<input type="file" accept="image/png,image/jpeg,image/webp" multiple className="mt-3 block w-full text-xs" onChange={event => setFiles(Array.from(event.target.files || []))} /></label>
+        <label className="block rounded-2xl border border-dashed bg-white p-6 text-center text-sm">上传商品图<input type="file" accept="image/png,image/jpeg,image/webp" multiple className="mt-3 block w-full text-xs" onChange={event => setFiles(Array.from(event.target.files || []))} /></label>
+        <div className="rounded-2xl border bg-white p-4">
+          <p className="text-sm font-medium">从素材库点选</p>
+          <p className="mt-1 text-xs text-muted-foreground">点选后任务保存自己的副本。之后在库里替换或删除，不影响这次任务。</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+            {library.length ? library.map(item => <label key={item.id} className={`rounded-xl border p-2 text-xs ${picked.includes(item.id) ? "border-foreground" : ""}`}><img alt={item.name} src={item.url} className="aspect-square w-full object-contain" /><span className="mt-2 flex items-center gap-2"><input type="checkbox" checked={picked.includes(item.id)} onChange={event => setPicked(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} />{item.name}</span></label>) : <p className="text-sm text-muted-foreground">素材库还是空的。上传的商品图会自动入库。</p>}
+          </div>
+        </div>
         <label className="block text-sm">已知事实（可选）<textarea value={facts} onChange={event => setFacts(event.target.value)} rows={3} className="mt-2 w-full rounded-2xl border px-3 py-3" /></label>
         <div className="flex flex-wrap gap-2">{(["hero", "detail", "both"] as const).map(item => <button key={item} type="button" onClick={() => setMode(item)} className={mode === item ? "rounded-full bg-foreground px-3 py-1.5 text-xs text-white" : "rounded-full border px-3 py-1.5 text-xs"}>{item === "hero" ? "只要主图" : item === "detail" ? "只要详情" : "两者都要"}</button>)}</div>
         <div className="grid gap-3 md:grid-cols-3">

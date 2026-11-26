@@ -29,11 +29,10 @@ export async function saveWorkbenchSettings(input: { textModelId: string; imageM
 
 export async function ensureDesktopDefaults() {
   if (process.env.APP_RUNTIME !== "desktop") return;
-  await prisma.workbenchSettings.upsert({
-    where: { id: "default" },
-    create: { id: "default", textModelId: DEFAULT_TEXT_MODEL, imageModelId: DEFAULT_IMAGE_MODEL },
-    update: {},
-  });
+  const settings = await prisma.workbenchSettings.findUnique({ where: { id: "default" } });
+  if (!settings) {
+    await prisma.workbenchSettings.create({ data: { id: "default", textModelId: DEFAULT_TEXT_MODEL, imageModelId: DEFAULT_IMAGE_MODEL } });
+  }
   const existing = await prisma.providerConfig.findFirst({ where: { isActive: true } });
   if (existing) return;
   const baseUrl = process.env.LOCK_BASE_URL?.trim() || "https://api.openai.com/v1";

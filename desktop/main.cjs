@@ -41,6 +41,10 @@ function getMigrationScript() {
   return path.join(getStandaloneRoot(), "scripts", "apply-prisma-migrations.cjs");
 }
 
+function getDesktopDefaultsScript() {
+  return path.join(getStandaloneRoot(), "scripts", "ensure-desktop-defaults.cjs");
+}
+
 async function ensureDir(dirPath) {
   await fsp.mkdir(dirPath, { recursive: true });
 }
@@ -476,6 +480,7 @@ async function bootstrapDesktopApp() {
   updateSplashStatus("正在初始化数据库...");
   console.time("desktop:migration");
   await spawnNodeScript(getMigrationScript(), getRuntimeEnv(runtime, 3000));
+  await spawnNodeScript(getDesktopDefaultsScript(), getRuntimeEnv(runtime, 3000));
   console.timeEnd("desktop:migration");
 
   updateSplashStatus("正在启动本地服务...");

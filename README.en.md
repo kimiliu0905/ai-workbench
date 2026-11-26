@@ -47,7 +47,7 @@ Desktop drivers are integrated but control defaults to off. Windows input/save a
 - Phone mockup preview, per-image editing/version history, ZIP and stitched detail-page exports.
 - Independent fixed-prompt translation: single images, multiple images, folders, multiple languages and source/result comparison. Submission opens a dedicated progress and preview page; each image set saves one result project per language, without an extra source-only project. IndexedDB upload checkpoints survive refresh; stable request IDs prevent duplicate projects and uploads after lost responses. Legacy duplicate source-only uploads are hidden from work lists while their files and comparison sources remain intact. No product-planning Agent.
 - Shared task queue, stage/per-image timing, API cost and stability charts, CNY estimates with editable conversion.
-- Local avatar/profile, rolling 12-month usage heatmap, model settings and appearance.
+- Local avatar/profile, model settings and appearance. The usage heatmap is hidden from end users.
 
 Presets do not publish to marketplaces. This is an image-production workspace, not a storefront builder.
 

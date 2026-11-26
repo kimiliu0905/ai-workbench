@@ -4,11 +4,17 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+export function sqliteDatabaseUrl(raw = process.env.DATABASE_URL) {
+  const url = raw?.trim() || "file:./dev.db";
+  if (!/^file:|^sqlite:/i.test(url) || /[?&]socket_timeout=/.test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}socket_timeout=60`;
+}
+
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
+    datasources: { db: { url: sqliteDatabaseUrl() } },
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-    // Parallel tests and the desktop's single SQLite file can wait on a write lock.
     transactionOptions: { maxWait: 20000, timeout: 30000 },
   });
 
