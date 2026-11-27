@@ -10,8 +10,11 @@
 - 打包服务通过干净 SQLite、Prisma、sharp、路由和项目读写的独立验证。打包清单已检查，旧产物、源码追踪带来的 Git 目录、开发缓存、数据库及密钥文件均已排除。ZIP 在仓库外解压并通过本地签名检查。
 - 在解压后的 Electron 主窗口及本机模拟 API 中，验证了首次配置、无效 Key、流式 Markdown、文字和图片追问、超时、三图制作、模板复用与重启。也用单独临时 `.env.local` 验证打包进程能接收开发环境 Key，未发模型请求。
 - 模拟下载通过 Electron 实际写盘，测得 `873 × 947` PNG。另将第 1 版下载与素材库文件逐字节比对，并确认编辑请求的第一张输入就是该文件。检查了常规窗口和 900 × 650 窗口，预览完整显示。截图、模拟 PNG 与验证日志在 `test-output/workbench/`。
-- GitHub 授权已完成，开发分支已推送并建立[草稿 PR #2](https://github.com/kimiliu0905/ai-workbench/pull/2)。首轮 [Windows x64 工作流](https://github.com/kimiliu0905/ai-workbench/actions/runs/46011473703)已通过内置服务和实装桌面交互。[修订版构建与验收](https://github.com/kimiliu0905/ai-workbench/actions/runs/46011956739)进行中。
+- GitHub 授权已完成，开发分支已推送并建立[草稿 PR #2](https://github.com/kimiliu0905/ai-workbench/pull/2)。首轮 [Windows x64 工作流](https://github.com/kimiliu0905/ai-workbench/actions/runs/46011473703)已通过内置服务和实装桌面交互。[修订版构建与验收](https://github.com/kimiliu0905/ai-workbench/actions/runs/46011956739)两平台作业均已通过，对应代码 `3d597cc`。
 - Mac 打包版通过 OpenAI 真实 API 完成首次配置、文字追问、连续看图追问、三图输入、原始版和独立新版本的生成与下载。四轮聊天及看图请求完成，首次设置尝试两次，图像编辑三次，三个实测文件均为 `1003 × 1003` PNG。记录在 `test-output/workbench/real/`；账单金额未核实。
 - 实际看图确认第 1、2 版保留马克杯形态、杯把方向和主框的底部文字。第 3 版沿用了后续草稿中的部分背景色，已修正历史编辑请求，使它仅使用选中版本和本次修改说明。修订版再次从第 1 版编辑，保留了暖米色背景、商品和文字，按要求在右下方加一片绿叶。复验下载也是 `1003 × 1003` PNG，图像请求合计四次。
 - 真实测试上限为聊天 20 次、图像 6 次及 5 美元。使用 Luna 与 Flare 的中档图像设置，本轮预算预留约 1 美元，实际费用以 OpenAI 项目用量为准。[Luna 定价](https://developers.openai.com/api/docs/models/gpt-6-luna) · [图像定价](https://developers.openai.com/api/docs/pricing) · [图像估算器](https://developers.openai.com/api/docs/guides/image-generation#calculating-costs)
-- Agent 的既有浏览器回归已改用新版「更多」菜单与「高级设置」入口。本机浏览器已验证导航、会话确认与恢复、文档下载、移动端面板和模型设置持久化。
+- Agent 的既有浏览器回归已改用新版「更多」菜单与「高级设置」入口。本机以及 [Windows、macOS、Ubuntu 回归工作流](https://github.com/kimiliu0905/ai-workbench/actions/runs/46015242122)均通过。
+- Windows 在 GitHub 的 Windows 2025 x64 环境先检查内置服务、SQLite、Prisma 和 sharp，再运行真实 NSIS 安装器。安装版使用模拟 API，通过首次配置、对话流式显示、图片上传、旧版编辑和保存、下载写盘、模板复用及重启。模拟文件实测为 `873 × 947` PNG，截图与日志在本机 `test-output/workbench/windows-x64/` 和 `test-output/workbench/windows-verified-job.log`。
+- [Windows 安装程序、便携包与 SHA-256](https://github.com/kimiliu0905/ai-workbench/actions/runs/46011956739/artifacts/15205024442)均已上传，试用时发 `YezijianWorkbench-0.4.0-windows-x64.exe`。试用安装程序没有 Windows 代码签名。
+- 本机便携包位于 `dist-desktop/verified/windows-x64/YezijianWorkbench-0.4.0-windows-x64.zip`，已通过发布作业提供的 SHA-256 校验并检查内部 x64 程序。实装验收使用的是上述 GitHub 产物中的 NSIS 安装器。由于本机至产物存储的传输超时，安装器通过 GitHub 下载交付。
