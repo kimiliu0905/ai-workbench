@@ -2,7 +2,9 @@
 
 - 桌面工作台的 OpenAI 请求改用 Electron 网络栈，跟随操作系统的代理配置。
 - 「设置」和「数据管理」新增「更改数据位置」。确认后会复制聊天、素材、模板、密钥与备份。成功启动新位置后清理已经迁走的旧数据。
-- 本机 Electron 网络验证和隔离数据迁移已通过。新版本的打包回归及 Windows 安装验证进行中。
+- Mac 打包版在设置中通过 HTTPS 代理连接真实 OpenAI，并验证了现有 API Key。此项只查询模型权限。另用模拟 API 验证了流式聊天、做图和数据迁移。
+- [Windows x64 实装验证](https://github.com/kimiliu0905/ai-workbench/actions/runs/46032577031/job/140620085620)通过。测试代理收到模型验证、聊天和图片编辑请求。工作台从 C 盘迁到 D 盘后保留了 Key、聊天、图片版本和备份，并清理了已迁移的旧文件。使用者自己的电脑仍需验证实际代理配置。
+- [Windows 便携包](https://github.com/kimiliu0905/ai-workbench/actions/runs/46032577031/artifacts/15216192032) · [Windows 安装包](https://github.com/kimiliu0905/ai-workbench/actions/runs/46032577031/artifacts/15216012227)。两者都附 SHA-256 校验文件，构建提交为 `df3ba56`。
 
 # 椰子酱电商工作台 0.4.0 交付记录
 

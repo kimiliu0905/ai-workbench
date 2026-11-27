@@ -39,7 +39,7 @@ node tests/browser/workbench-desktop.cjs
 
 `smoke:desktop` 检查打包后的服务、数据库和原生处理模块。最后一条命令运行 Electron 安装产物界面的模拟服务验收，可在命令末尾追加已安装的可执行文件路径。两类测试都使用独立数据目录。
 
-GitHub Actions 的「Desktop packages」提供 Windows 和 macOS 构建记录、校验值及 GUI 验收截图。面向 Windows 用户发 `desktop-windows-x64` 产物中的安装程序。验证范围与进展见 [交付记录](docs/releases/unreleased.md)。
+GitHub Actions 的「Desktop packages」提供 Windows 和 macOS 构建记录、校验值及 GUI 验收截图。Windows 便携版见 `desktop-windows-x64`，解压到目标盘后打开 `YezijianWorkbench.exe`。安装版见 `installer-windows-x64`。验证范围与进展见 [交付记录](docs/releases/unreleased.md)。
 
 ### Mac 打包版读取开发 Key
 
