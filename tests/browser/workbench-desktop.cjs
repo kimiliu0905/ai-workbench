@@ -205,6 +205,7 @@ async function main() {
       const sent = await sharp(fixture.calls.images[0].files[index]).raw().toBuffer();
       assert.deepEqual(sent, original);
     }
+    await page.getByLabel("制作要求").fill("保留主框边界，为第 2 版把背景改成蓝色。");
     await page.getByRole("button", { name: "生成图片" }).click();
     await visible(page.getByRole("button", { name: "第 2 版", exact: true }));
     await page.getByRole("button", { name: "第 1 版", exact: true }).click();
@@ -219,8 +220,10 @@ async function main() {
     await page.getByLabel("修改第 1 版").fill("把背景改浅，保留产品位置。");
     await page.getByRole("button", { name: "继续修改" }).click();
     await visible(page.getByRole("button", { name: "第 3 版", exact: true }));
-    assert.deepEqual(fixture.calls.images[2].files[0], first);
+    assert.deepEqual(fixture.calls.images[2].files, [first]);
     assert.match(fixture.calls.images[2].prompt, /第 1 张输入图：选中的上一版原图/);
+    assert.match(fixture.calls.images[2].prompt, /把背景改浅，保留产品位置/);
+    assert.doesNotMatch(fixture.calls.images[2].prompt, /把背景改成蓝色/);
     const oldJobId = new URL(page.url()).searchParams.get("job");
     await page.getByRole("button", { name: "查看大图", exact: true }).click();
     await visible(page.getByRole("dialog"));

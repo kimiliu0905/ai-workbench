@@ -110,11 +110,12 @@ export async function generateComposeJob(jobId: string, draft: ComposeDraft, ver
     if (change && change.length > 10000) throw new WorkbenchError("修改说明过长。");
     if (change && !versionId) throw new WorkbenchError("请先选择要修改的版本。");
     const base = change ? selectComposeVersion(job.versions, versionId) : undefined;
-    if (job.referenceCopyPath && data.referenceUse === "custom" && !data.referenceNote && !data.instruction) {
+    if (!base && job.referenceCopyPath && data.referenceUse === "custom" && !data.referenceNote && !data.instruction) {
       throw new WorkbenchError("请说明要怎样使用参考图。");
     }
-    const images = [
-      [base?.filePath, "选中的上一版原图。本次以它为编辑底图，只修改用户明确指定的地方。"],
+    const images = base ? [
+      { file: base.filePath, role: "选中的上一版原图。沿用这张图的版式、背景、商品和文字，只修改本次明确指定的部分。" },
+    ] : [
       [job.frameCopyPath, "主图框。保持边框、标志、现有文字与留白位置，商品放入指定区域。"],
       [job.productCopyPath, "产品图。保持产品形状、比例、包装文字与颜色。"],
       [job.referenceCopyPath, `参考图。${referenceRoles[data.referenceUse]} ${data.referenceNote}`],
@@ -123,7 +124,7 @@ export async function generateComposeJob(jobId: string, draft: ComposeDraft, ver
     const prompt = [
       `制作一张商品图，交付尺寸为 ${data.width}×${data.height}。商品和主框细节应完整可见，不要拉伸或裁掉主体。`,
       ...images.map(({ role }, index) => `第 ${index + 1} 张输入图：${role}`),
-      data.instruction && `制作要求：${data.instruction}`,
+      !base && data.instruction && `制作要求：${data.instruction}`,
       change && `本次修改（优先执行）：${change}`,
     ].filter(Boolean).join("\n");
     const callSettings = { model: imageModelId, size: `${data.requestWidth}x${data.requestHeight}`, quality: "medium" as const, output_format: "png" as const, n: 1 };
