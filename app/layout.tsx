@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ThemeToaster } from "@/components/layout/theme-toggle";
 
 import "./globals.css";
+import "./workbench.css";
 import "@/components/editor/taobao-product-preview.css";
 
 import { WorkbenchFrame } from "@/components/layout/workbench-frame";
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
   metadataBase: publicSiteUrl(),
   title: { default: productTitle, template: `%s · ${productTitle}` },
   applicationName: productTitle,
-  keywords: ["MxPage", "AI电商详情页", "商品主图生成", "图片翻译", "小红书图文", "AI product images", "self-hosted"],
+  keywords: ["椰子酱工作台", "聊天", "商品图", "OpenAI"],
   authors: [{ name: "灵矩绘境", url: "https://github.com/ziguishian/MxPage" }],
   robots: { index: false, follow: false },
   openGraph: { type: "website", locale: "zh_CN", siteName: productTitle, title: productTitle, description: productDescription },

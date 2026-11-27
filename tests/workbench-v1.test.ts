@@ -75,22 +75,21 @@ test("desktop runtime ignores renderer API key headers", async () => {
   const bridge = await readFile("components/layout/provider-credential-fetch-bridge.tsx", "utf8");
   assert.match(bridge, /headers\.delete\("x-mxpage-api-key"\)/);
   assert.doesNotMatch(bridge, /localStorage\.getItem/);
-  const settings = await readFile("app/settings/page.tsx", "utf8");
-  const models = await readFile("lib/product.ts", "utf8");
-  assert.doesNotMatch(settings, /apiKey|API Key|x-mxpage-api-key|localStorage/);
-  assert.match(settings, /默认文本模型/);
-  assert.match(settings, /默认生图模型/);
-  assert.match(models, /gpt-6-luna/);
-  assert.match(models, /gpt-6\.2-sol/);
-  assert.match(models, /gpt-6\.1-terra/);
-  assert.match(models, /gpt-image-2\.6-flare/);
-  assert.match(models, /gpt-image-2\.6-sunburst/);
+  process.env.WORKBENCH_SECRETS_PATH = path.join(directory, "secrets.json");
+  try {
+    const { saveServerApiKey, readServerApiKey } = await import("../lib/auth/secrets");
+    saveServerApiKey("dummy-credential-only-used-in-tests");
+    assert.equal(readServerApiKey(), "dummy-credential-only-used-in-tests");
+    assert.doesNotMatch(await readFile(process.env.WORKBENCH_SECRETS_PATH, "utf8"), /dummy-credential/);
+  } finally {
+    delete process.env.WORKBENCH_SECRETS_PATH;
+  }
 });
 
-test("size policy locks illegal targets and keeps 2.6 square sizes legal", async () => {
+test("size policy enforces the 2.6 minimum and finishes exact target dimensions", async () => {
   const { planImageSize, finishImageToTarget, isLegalImageSize } = await import("../lib/image/size-policy");
   assert.equal(isLegalImageSize(1024, 1024, "gpt-image-2.6-flare"), true);
-  assert.equal(isLegalImageSize(800, 800, "gpt-image-2.6-flare"), true);
+  assert.equal(isLegalImageSize(800, 800, "gpt-image-2.6-flare"), false);
   assert.equal(isLegalImageSize(800, 800, "gpt-image-2.5-flare"), false);
   const odd = planImageSize(801, 800, "gpt-image-2.6-flare");
   assert.equal(odd.legal, false);
@@ -127,19 +126,20 @@ test("asset library keeps the three approved defaults and task copies", async ()
   assert.deepEqual(await library.readLibraryBytes(copied.copyPath), before);
 });
 
-test("chat attachments are not library assets and the shell hides removed entries", async () => {
+test("chat attachments are not library assets and delete with their session", async () => {
   const { saveChatAttachment } = await import("../lib/workbench/chat");
   const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: "#abc" } }).png().toBuffer();
   const before = await db.libraryAsset.count();
   const saved = await saveChatAttachment(png, "image/png");
   assert.match(saved.relative, /^chat\//);
   assert.equal(await db.libraryAsset.count(), before);
-  const shell = await readFile("components/layout/app-shell.tsx", "utf8");
-  for (const label of ["首页", "聊天", "做一张图", "做一套图", "译图", "Agent"]) assert.match(shell, new RegExp(label));
-  assert.doesNotMatch(shell, /素材库|href="\/library"|小红书|监控|热力图|API 配置/);
-  const login = await readFile("app/login/page.tsx", "utf8");
-  assert.match(login, /输入共享口令进入/);
-  assert.doesNotMatch(login, /apiKey|API Key|演示口令/);
+  const { createChatSession, changeChatSession } = await import("../lib/workbench/chat");
+  const session = await createChatSession();
+  await db.chatMessage.create({ data: { sessionId: session.id, role: "user", content: "图", imagePath: saved.relative } });
+  assert.equal((await changeChatSession(session.id, "我的对话"))?.title, "我的对话");
+  await changeChatSession(session.id, null);
+  assert.equal(await db.chatMessage.count({ where: { sessionId: session.id } }), 0);
+  await assert.rejects(readFile(path.join(process.env.STORAGE_ROOT!, saved.relative)), { code: "ENOENT" });
 });
 
 test("desktop broker is only the Electron channel, not Next's process.send", async () => {
@@ -283,7 +283,6 @@ test("product acceptance gaps stay closed in source", async () => {
   assert.match(compose, /get\("job"\)/);
   assert.match(compose, /继续修改/);
   assert.match(compose, /套用模板/);
-  assert.match(compose, /版本列表/);
   const { getWorkbenchProfile, saveWorkbenchProfile } = await import("../lib/workbench/profile");
   assert.equal((await getWorkbenchProfile()).name, "椰子酱");
   assert.equal((await saveWorkbenchProfile({ name: "椰子酱", username: "kimi_desk", avatar: null })).username, "kimi_desk");

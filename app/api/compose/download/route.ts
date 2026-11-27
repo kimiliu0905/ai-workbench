@@ -1,28 +1,25 @@
 import fs from "node:fs/promises";
-import path from "node:path";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { requireComposeJob, selectComposeVersion } from "@/lib/workbench/compose";
+import { workbenchFilePath } from "@/lib/workbench/image-files";
 import { fail } from "@/lib/utils/route";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const jobId = request.nextUrl.searchParams.get("jobId") || "";
-  const job = await prisma.composeJob.findUnique({ where: { id: jobId } });
-  const versions = (job?.versions as Array<{ id?: string; filePath: string }> | undefined) || [];
-  const requested = request.nextUrl.searchParams.get("versionId");
-  const latest = versions.find(version => version.id === requested) || versions.at(-1);
-  if (!job || !latest) return fail("NOT_FOUND", "还没有可下载的图片。", null, 404);
-  const root = path.resolve(process.cwd(), process.env.STORAGE_ROOT || "./storage");
-  const absolute = path.resolve(root, latest.filePath);
-  if (!absolute.startsWith(root)) return fail("NOT_FOUND", "文件不存在。", null, 404);
-  const bytes = await fs.readFile(absolute);
-  const inline = request.nextUrl.searchParams.get("preview") === "1";
-  return new Response(bytes, {
-    headers: {
-      "Content-Type": "image/png",
-      "Cache-Control": "no-store",
-      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="compose-${job.width}x${job.height}.png"`,
-    },
-  });
+  try {
+    const job = await requireComposeJob(request.nextUrl.searchParams.get("jobId") || "");
+    const version = selectComposeVersion(job.versions, request.nextUrl.searchParams.get("versionId"));
+    const bytes = await fs.readFile(workbenchFilePath(version.filePath));
+    const inline = request.nextUrl.searchParams.get("preview") === "1";
+    return new Response(bytes, {
+      headers: {
+        "Content-Type": "image/png",
+        "Cache-Control": "no-store",
+        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="compose-${version.width}x${version.height}-${version.id.slice(0, 8)}.png"`,
+      },
+    });
+  } catch {
+    return fail("NOT_FOUND", "找不到所选版本的图片。", null, 404);
+  }
 }

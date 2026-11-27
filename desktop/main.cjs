@@ -16,6 +16,8 @@ const { PRODUCT_NAME, USER_DATA_DIR_NAME, DESKTOP_BIND_HOST, DEFAULT_LOCK_BASE_U
 app.setName(PRODUCT_NAME);
 app.setPath("userData", process.env.APP_USER_DATA_DIR || path.join(app.getPath("appData"), USER_DATA_DIR_NAME));
 
+const windowToken = crypto.randomBytes(32).toString("hex");
+
 let mainWindow = null;
 let splashWindow = null;
 let serverProcess = null;
@@ -87,6 +89,7 @@ async function ensureDesktopRuntimeConfig() {
   const nextSecrets = {
     passwordHash: typeof secrets.passwordHash === "string" ? secrets.passwordHash : "",
     passwordVersion: Number.isInteger(secrets.passwordVersion) ? secrets.passwordVersion : 0,
+    openaiApiKeyEncrypted: typeof secrets.openaiApiKeyEncrypted === "string" ? secrets.openaiApiKeyEncrypted : undefined,
     openaiApiKey: typeof secrets.openaiApiKey === "string" ? secrets.openaiApiKey : "",
     lockBaseUrl: typeof secrets.lockBaseUrl === "string" && secrets.lockBaseUrl ? secrets.lockBaseUrl : DEFAULT_LOCK_BASE_URL,
   };
@@ -117,6 +120,7 @@ function getRuntimeEnv(runtime, port) {
     APP_SECRET: runtime.appSecret,
     NEXT_PUBLIC_APP_NAME: PRODUCT_NAME,
     WORKBENCH_SECRETS_PATH: runtime.secretsPath,
+    WORKBENCH_WINDOW_TOKEN: windowToken,
     WORKBENCH_PASSWORD_HASH: runtime.secrets.passwordHash,
     WORKBENCH_PASSWORD_VERSION: String(runtime.secrets.passwordVersion),
     OPENAI_API_KEY: runtime.secrets.openaiApiKey || process.env.OPENAI_API_KEY || "",
@@ -194,10 +198,10 @@ function waitForServer(url, timeoutMs = 30000) {
 
   return new Promise((resolve, reject) => {
     const attempt = () => {
-      const request = http.get(url, (response) => {
+      const request = http.get(url, { headers: { "X-Workbench-Window": windowToken } }, (response) => {
         response.resume();
 
-        if ((response.statusCode ?? 500) < 500) {
+        if ([200, 307, 308].includes(response.statusCode)) {
           resolve(true);
           return;
         }
@@ -412,8 +416,8 @@ function createMainWindow(url) {
   mainWindow = new BrowserWindow({
     width: 1520,
     height: 980,
-    minWidth: 1280,
-    minHeight: 820,
+    minWidth: 840,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: "#f5f5f5",
@@ -425,6 +429,12 @@ function createMainWindow(url) {
       nodeIntegration: false,
       sandbox: true,
     },
+  });
+
+  const windowId = mainWindow.webContents.id;
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders({ urls: [`${url}/*`] }, (details, callback) => {
+    if (details.webContentsId === windowId) details.requestHeaders["X-Workbench-Window"] = windowToken;
+    callback({ requestHeaders: details.requestHeaders });
   });
 
   mainWindow.once("ready-to-show", () => {

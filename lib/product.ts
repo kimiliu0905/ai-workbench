@@ -29,6 +29,7 @@ export const sizePresets = [
 
 export const referenceUseOptions = [
   { id: "frame", label: "放进主图框" },
-  { id: "look", label: "参考画面" },
+  { id: "look", label: "参考风格" },
+  { id: "layout", label: "参考构图和摆放" },
   { id: "custom", label: "自定义" },
 ] as const;

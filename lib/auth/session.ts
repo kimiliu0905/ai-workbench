@@ -14,8 +14,8 @@ export async function readRequestSession() {
 }
 
 export async function sessionStatus() {
-  const required = isDesktopRuntime();
   const hasPassword = hasPasswordConfigured();
+  const required = process.env.WORKBENCH_REQUIRE_AUTH === "1" || (isDesktopRuntime() && hasPassword);
   const claims = await readRequestSession();
   const authenticated = !required || (hasPassword && !!claims && claims.v === currentPasswordVersion());
   return {

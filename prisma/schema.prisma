@@ -395,6 +395,7 @@ model LibraryAsset {
 }
 
 model ComposeTemplate {
+  frameCopyPath String?
   id            String   @id @default(cuid())
   name          String
   frameNote     String   @default("")

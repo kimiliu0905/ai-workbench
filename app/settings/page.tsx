@@ -1,79 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { imageModelOptions, textModelOptions } from "@/lib/product";
+import Link from "next/link";
+import { useEffect, useState, type FormEvent } from "react";
+import { ArrowLeft, KeyRound } from "lucide-react";
+import { readWorkbench, sendJson } from "@/lib/workbench/client";
 
-async function read(response: Response) {
-  const payload = await response.json();
-  if (!response.ok || payload.success === false) throw new Error(payload.error?.message || "请求失败");
-  return payload.data;
-}
+type Settings = { keyConfigured: boolean; textModelId: string; imageModelId: string; textModelOptions: string[]; imageModelOptions: string[] };
 
 export default function SettingsPage() {
-  const [textModelId, setTextModelId] = useState(textModelOptions[0]);
-  const [imageModelId, setImageModelId] = useState(imageModelOptions[0]);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [nextPassword, setNextPassword] = useState("");
-  const [desktopEnabled, setDesktopEnabled] = useState(false);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [key, setKey] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   useEffect(() => {
-    fetch("/api/workbench/settings").then(read).then(data => { setTextModelId(data.textModelId); setImageModelId(data.imageModelId); }).catch(reason => setMessage(reason.message));
-    fetch("/api/agent/settings").then(response => response.json()).then(payload => setDesktopEnabled(Boolean(payload.data?.settings?.desktopEnabled))).catch(() => undefined);
+    fetch("/api/workbench/settings").then(readWorkbench<Settings>).then(setSettings).catch(reason => setError(reason.message));
   }, []);
-  async function save() {
+
+  async function save(event: FormEvent, body: object, keyChange: boolean) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
     setMessage("");
-    await read(await fetch("/api/workbench/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ textModelId, imageModelId }) }));
-    const agent = await fetch("/api/agent/settings").then(response => response.json());
-    if (agent.data?.settings) {
-      await fetch("/api/agent/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...agent.data.settings, desktopEnabled, sandboxEnabled: false }) });
-    }
-    if (nextPassword) {
-      const response = await fetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword, nextPassword }) });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error?.message || "口令没有改成");
-    }
-    setMessage("已保存。对新的聊天、做图、译图和 Agent 任务生效。");
-    setNextPassword("");
-    setCurrentPassword("");
+    setError("");
+    try {
+      const updated = await readWorkbench<Settings>(await fetch("/api/workbench/settings", sendJson("POST", body)));
+      setSettings(updated);
+      if (keyChange) {
+        setKey("");
+        setShow(false);
+      }
+      setMessage(keyChange ? "已验证并保存。现在可以开始聊天和做图。" : "模型设置已保存。");
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally { setBusy(false); }
   }
+
   return (
-    <div>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground">设置</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">预配默认模型和口令</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">改完默认模型和口令后，对新的聊天、做图、译图和 Agent 任务生效。</p>
-        </div>
-        <button type="button" onClick={() => save().catch(reason => setMessage(reason.message))} className="rounded-xl bg-foreground px-4 py-2 text-sm text-white">保存设置</button>
-      </div>
-      <section className="mt-5 space-y-3 rounded-2xl border bg-white p-5">
-        <h2 className="font-semibold">默认模型</h2>
-        <p className="text-sm text-muted-foreground">日常做图和聊天不用每次再选模型。</p>
-        <label className="block text-sm">默认文本 / 聊天模型
-          <select aria-label="默认文本模型" value={textModelId} onChange={event => setTextModelId(event.target.value as typeof textModelId)} className="mt-2 w-full rounded-xl border bg-white px-3 py-3">
-            {textModelOptions.map(model => <option key={model} value={model}>{model}</option>)}
-          </select>
-        </label>
-        <p className="text-xs text-muted-foreground">默认是 gpt-6-luna。可能需要改成其他型号。</p>
-        <label className="block text-sm">默认生图模型
-          <select aria-label="默认生图模型" value={imageModelId} onChange={event => setImageModelId(event.target.value as typeof imageModelId)} className="mt-2 w-full rounded-xl border bg-white px-3 py-3">
-            {imageModelOptions.map(model => <option key={model} value={model}>{model}</option>)}
-          </select>
-        </label>
-        <p className="text-xs text-muted-foreground">精细编辑不够时，可改为 gpt-image-2.6-sunburst。</p>
+    <div className="wb-settings">
+      <Link className="wb-back" href="/chat"><ArrowLeft size={16} /> 返回聊天</Link>
+      <h1>设置</h1>
+      <section className="wb-setting-section">
+        <div className="wb-setting-title"><div className="wb-mark"><KeyRound size={22} /></div><div><h2>连接 OpenAI</h2><p>设置一次，聊天和做图都能使用。</p></div></div>
+        {settings && <p className="wb-key-state" data-ready={settings.keyConfigured}>{settings.keyConfigured ? "已配置" : "待配置"}</p>}
+        <form onSubmit={event => void save(event, { apiKey: key }, true)}>
+          <label htmlFor="wb-api-key">OpenAI API Key</label>
+          <div className="wb-setting-input">
+            <input id="wb-api-key" type={show ? "text" : "password"} value={key} onChange={event => setKey(event.target.value)} placeholder={settings?.keyConfigured ? "输入新的 Key 可替换" : "粘贴你的 OpenAI API Key"} autoComplete="off" spellCheck={false} />
+            <button type="button" className="wb-button wb-subtle" onClick={() => setShow(!show)}>{show ? "隐藏" : "显示"}</button>
+          </div>
+          <button type="submit" className="wb-button wb-primary" disabled={!key.trim() || busy || !settings} >{busy ? "正在保存…" : "验证并保存"}</button>
+        </form>
+        <p>保存后可以关闭设置。使用模型会消耗对应 OpenAI 项目的 API 额度。</p>
+        {message && <p role="status" className="wb-feedback">{message}</p>}
+        {error && <p role="alert" className="wb-error">{error}</p>}
       </section>
-      <section className="mt-4 space-y-3 rounded-2xl border bg-white p-5">
-        <h2 className="font-semibold">共享口令</h2>
-        <p className="text-sm text-muted-foreground">用于进入这台电脑上的工作台。不做第三方账号登录。</p>
-        <label className="block text-sm">当前共享口令<input type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3" /></label>
-        <label className="block text-sm">输入新的共享口令<input type="password" value={nextPassword} onChange={event => setNextPassword(event.target.value)} placeholder="留空则不修改" className="mt-2 w-full rounded-xl border px-3 py-3" /></label>
-      </section>
-      <section className="mt-4 rounded-2xl border bg-white p-5">
-        <h2 className="font-semibold">Agent 相关开关</h2>
-        <p className="mt-2 text-sm text-muted-foreground">桌面控制默认是关闭的，一般不用打开。沙箱和 MCP 也不默认开启。</p>
-        <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={desktopEnabled} onChange={event => setDesktopEnabled(event.target.checked)} />开启桌面控制</label>
-      </section>
-      {message && <p role="status" className="mt-4 text-sm">{message}</p>}
+      {settings && <details className="wb-setting-section">
+        <summary>高级设置</summary>
+        <form onSubmit={event => void save(event, { textModelId: settings.textModelId, imageModelId: settings.imageModelId }, false)}>
+          <label>聊天模型<select value={settings.textModelId} onChange={event => setSettings({ ...settings, textModelId: event.target.value })}>{settings.textModelOptions.map(model => <option key={model}>{model}</option>)}</select></label>
+          <label>做图模型<select value={settings.imageModelId} onChange={event => setSettings({ ...settings, imageModelId: event.target.value })}>{settings.imageModelOptions.map(model => <option key={model}>{model}</option>)}</select></label>
+          <button className="wb-button" type="submit" disabled={busy}>保存模型</button>
+        </form>
+        <div className="wb-setting-links"><Link href="/settings/data">数据管理</Link><Link href="/settings/agent">Agent 设置</Link><Link href="/settings/about">关于</Link></div>
+      </details>}
     </div>
   );
 }

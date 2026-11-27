@@ -5,10 +5,14 @@ export type PixelSize = { width: number; height: number };
 
 const MAX_SIDE = 3840;
 const MAX_PIXELS = 8_294_400;
-const MIN_PIXELS_IMAGE_25 = 655_360;
+const MIN_GPT_IMAGE_PIXELS = 655_360;
 
 export function image25MinPixels(modelId?: string) {
   return /gpt-image-2\.5/i.test(modelId || "");
+}
+
+function requiresMinimumImagePixels(modelId?: string) {
+  return image25MinPixels(modelId) || /gpt-image-2\.6/i.test(modelId || "");
 }
 
 export function isLegalImageSize(width: number, height: number, modelId?: string) {
@@ -19,7 +23,7 @@ export function isLegalImageSize(width: number, height: number, modelId?: string
   const short = Math.min(width, height);
   if (short <= 0 || long / short > 3) return false;
   if (width * height > MAX_PIXELS) return false;
-  if (image25MinPixels(modelId) && width * height < MIN_PIXELS_IMAGE_25) return false;
+  if (requiresMinimumImagePixels(modelId) && width * height < MIN_GPT_IMAGE_PIXELS) return false;
   return true;
 }
 
@@ -43,7 +47,7 @@ export function planImageSize(width: number, height: number, modelId?: string) {
       }
     }
   }
-  const request = best ?? (image25MinPixels(modelId) ? { width: 1024, height: 1024 } : { width: 800, height: 800 });
+  const request = best ?? (requiresMinimumImagePixels(modelId) ? { width: 1024, height: 1024 } : { width: 800, height: 800 });
   return {
     target,
     requestWidth: request.width,

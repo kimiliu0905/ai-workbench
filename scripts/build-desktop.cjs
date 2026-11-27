@@ -137,6 +137,7 @@ async function prepareDesktopBuild() {
 async function startDesktopApp() {
   await prepareDesktopBuild();
   const electronBinary = require("electron");
+  require("@next/env").loadEnvConfig(projectRoot, false, { info() {}, error() {} });
   const desktopEnv = { ...process.env };
   delete desktopEnv.ELECTRON_RUN_AS_NODE;
   await runCommand(electronBinary, [projectRoot], {

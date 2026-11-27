@@ -11,11 +11,19 @@ function runtimeEnv(name: string) {
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  if (isPublicPath(pathname) && pathname !== "/login" && pathname !== "/api/auth/setup") {
-    return NextResponse.next();
+  const windowToken = runtimeEnv("WORKBENCH_WINDOW_TOKEN");
+  if (windowToken && request.headers.get("x-workbench-window") !== windowToken) {
+    return new NextResponse(null, { status: 403 });
   }
-  const requireAuth = runtimeEnv("APP_RUNTIME") === "desktop" || runtimeEnv("WORKBENCH_REQUIRE_AUTH") === "1";
+  if (pathname.startsWith("/api/") && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    const origin = request.headers.get("origin");
+    if (request.headers.get("sec-fetch-site") === "cross-site" || (origin && origin !== `${request.nextUrl.protocol}//${request.headers.get("host")}`)) {
+      return new NextResponse(null, { status: 403 });
+    }
+  }
+  if (isPublicPath(pathname) && pathname !== "/login" && pathname !== "/api/auth/setup") return NextResponse.next();
   const hasPassword = Boolean(runtimeEnv("WORKBENCH_PASSWORD_HASH")?.trim());
+  const requireAuth = runtimeEnv("WORKBENCH_REQUIRE_AUTH") === "1" || (runtimeEnv("APP_RUNTIME") === "desktop" && hasPassword);
   const passwordVersion = Number(runtimeEnv("WORKBENCH_PASSWORD_VERSION") || "0");
   const claims = await readSessionToken(runtimeEnv("APP_SECRET") || "", request.cookies.get(COOKIE)?.value);
   const decision = gateDecision({ pathname, claims, requireAuth, hasPassword, passwordVersion: Number.isFinite(passwordVersion) ? passwordVersion : 0 });

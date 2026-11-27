@@ -8,7 +8,7 @@ import { normalizeDetectedModels } from "@/lib/ai/capability-detector";
 import { recommendDefaultModels } from "@/lib/ai/model-matcher";
 import { encryptSecret } from "@/lib/utils/crypto";
 import { resolveRequestApiKey } from "@/lib/auth/credentials";
-import { isDesktopRuntime, readServerApiKey } from "@/lib/auth/secrets";
+import { isDesktopRuntime, readLegacyApiKey, readServerApiKey } from "@/lib/auth/secrets";
 import { getRequestProviderCredentials, resolveEffectiveBaseUrl } from "@/lib/services/provider-runtime";
 import type {
   CapabilityMap,
@@ -161,6 +161,11 @@ async function replaceProviderModels(
   });
 }
 
+function serverKeyForBase(baseUrl: string) {
+  if (normalizeOpenAiBaseUrl(baseUrl) === "https://api.openai.com/v1") return readServerApiKey();
+  return readLegacyApiKey();
+}
+
 export async function testProviderConnection(input: ProviderConnectionInput) {
   const adapter = new OpenAICompatibleAdapter(resolveEffectiveBaseUrl(input.baseUrl), input.apiKey);
   return adapter.testConnection();
@@ -174,7 +179,7 @@ export async function resolveProviderConnectionInput(
   const headerKeyMatches = !runtimeCredentials.baseUrl || normalizeOpenAiBaseUrl(resolveEffectiveBaseUrl(runtimeCredentials.baseUrl)) === normalizeOpenAiBaseUrl(baseUrl);
   const desktop = isDesktopRuntime();
   const apiKey = resolveRequestApiKey({
-    serverKey: readServerApiKey(),
+    serverKey: serverKeyForBase(baseUrl),
     explicit: desktop ? "" : input.apiKey,
     header: !desktop && headerKeyMatches ? runtimeCredentials.apiKey : "",
     desktop,
@@ -399,11 +404,11 @@ export async function getProviderAdapter(providerId?: string, snapshot?: Provide
 
   const runtimeCredentials = getRequestProviderCredentials();
   const provider = snapshot ? { ...saved, ...snapshot } : saved;
-  const apiKey = resolveRequestApiKey({ serverKey: readServerApiKey(), header: runtimeCredentials.apiKey, desktop: isDesktopRuntime() });
+  const baseUrl = snapshot ? snapshot.baseUrl : resolveEffectiveBaseUrl(runtimeCredentials.baseUrl ?? provider.baseUrl);
+  const apiKey = resolveRequestApiKey({ serverKey: serverKeyForBase(baseUrl), header: runtimeCredentials.apiKey, desktop: isDesktopRuntime() });
   if (!apiKey) {
     throw Object.assign(new Error("API Key is not configured in this browser. Configure it in Provider settings first."), { code: "PROVIDER_CREDENTIALS_MISSING" });
   }
-  const baseUrl = snapshot ? snapshot.baseUrl : resolveEffectiveBaseUrl(runtimeCredentials.baseUrl ?? provider.baseUrl);
   if (snapshot && runtimeCredentials.baseUrl && resolveEffectiveBaseUrl(runtimeCredentials.baseUrl) !== snapshot.baseUrl) {
     throw new Error("此任务属于原模型服务，请切回原服务后继续，或创建新任务。");
   }

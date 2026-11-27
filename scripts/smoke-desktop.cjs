@@ -10,8 +10,8 @@ const { once } = require("node:events");
 const root = path.resolve(__dirname, "..");
 const mac = process.platform === "darwin";
 const appDir = path.join(root, "dist-desktop", mac ? (process.arch === "arm64" ? "mac-arm64" : "mac") : "win-unpacked");
-const resources = mac ? path.join(appDir, "椰子酱电商工作台.app", "Contents", "Resources") : path.join(appDir, "resources");
-const executable = mac ? path.join(appDir, "椰子酱电商工作台.app", "Contents", "MacOS", "YezijianWorkbench") : path.join(appDir, "YezijianWorkbench.exe");
+const resources = mac ? path.join(appDir, "YezijianWorkbench.app", "Contents", "Resources") : path.join(appDir, "resources");
+const executable = mac ? path.join(appDir, "YezijianWorkbench.app", "Contents", "MacOS", "YezijianWorkbench") : path.join(appDir, "YezijianWorkbench.exe");
 const standalone = path.join(resources, "app", ".next-desktop", "standalone");
 
 async function main() {
@@ -24,6 +24,10 @@ async function main() {
     DATABASE_URL: `file:${path.join(temp, "smoke.db").replaceAll("\\", "/")}`,
     STORAGE_ROOT: path.join(temp, "storage"), HOSTNAME: "127.0.0.1",
   };
+  delete env.OPENAI_API_KEY;
+  delete env.WORKBENCH_SECRETS_PATH;
+  delete env.WORKBENCH_WINDOW_TOKEN;
+  delete env.WORKBENCH_REQUIRE_AUTH;
   delete env.LOCK_BASE_URL;
   delete env.FORCED_API_BASE;
   delete env.FORCED_API_BASE_URL;
@@ -66,7 +70,7 @@ async function main() {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     assert.ok(ready, `Packaged server did not start: ${serverLog}`);
-    for (const route of ["/", "/agent", "/api/agent/sessions", "/settings/agent", "/translate", "/xiaohongshu", "/history", "/tasks", "/settings/providers", "/settings/profile", "/settings/about", "/monitor/usage", "/api/projects", "/llms.txt", "/assets/phone-mockup-frame.png"]) {
+    for (const route of ["/", "/chat", "/compose", "/api/chat", "/api/compose", "/api/workbench/settings", "/agent", "/api/agent/sessions", "/settings/agent", "/translate", "/xiaohongshu", "/history", "/tasks", "/settings/providers", "/settings/profile", "/settings/about", "/monitor/usage", "/api/projects", "/llms.txt", "/assets/phone-mockup-frame.png"]) {
       const response = await fetch(`http://127.0.0.1:${env.PORT}${route}`, { signal: AbortSignal.timeout(15_000) });
       assert.equal(response.status, 200, `${route}: ${serverLog}`);
       if (route === "/api/projects") assert.deepEqual((await response.json()).data, []);

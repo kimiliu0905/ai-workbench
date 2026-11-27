@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import type { NextRequest } from "next/server";
 
 import { resolveRequestApiKey } from "@/lib/auth/credentials";
-import { isDesktopRuntime, readServerApiKey } from "@/lib/auth/secrets";
+import { isDesktopRuntime, readLegacyApiKey } from "@/lib/auth/secrets";
 import { env } from "@/lib/utils/env";
 
 export type RequestProviderCredentials = {
@@ -41,7 +41,7 @@ export function readProviderCredentialsFromRequest(request: NextRequest): Reques
   const headerKey = request.headers.get("x-mxpage-api-key")?.trim()
     || request.headers.get(["x", String.fromCharCode(109, 120, 105, 110, 115, 112, 105, 114, 101), "api", "key"].join("-"))?.trim()
     || "";
-  const apiKey = resolveRequestApiKey({ serverKey: readServerApiKey(), header: headerKey, desktop: isDesktopRuntime() });
+  const apiKey = resolveRequestApiKey({ serverKey: readLegacyApiKey(), header: headerKey, desktop: isDesktopRuntime() });
   return {
     apiKey: apiKey || undefined,
     baseUrl: request.headers.get("x-mxpage-base-url")?.trim() || request.headers.get(["x", String.fromCharCode(109, 120, 105, 110, 115, 112, 105, 114, 101), "base", "url"].join("-"))?.trim() || undefined,

@@ -1,62 +1,68 @@
 import { NextRequest } from "next/server";
-import { applyComposeTemplate, attachComposeInput, createComposeJob, generateComposeJob, listComposeTemplates, saveComposeResult, saveComposeTemplate } from "@/lib/workbench/compose";
-import { planImageSize } from "@/lib/image/size-policy";
-import { getWorkbenchSettings } from "@/lib/workbench/settings";
-import { withProviderCredentials } from "@/lib/services/provider-runtime";
-import { handleRouteError, ok } from "@/lib/utils/route";
+import { applyComposeTemplate, attachComposeInput, composeSlots, createComposeJob, generateComposeJob, requireComposeJob, saveComposeDraft, saveComposeResult, saveComposeTemplate, slotColumn, type ComposeDraft, type ComposeSlot } from "@/lib/workbench/compose";
+import { serveWorkbenchImage } from "@/lib/workbench/image-files";
+import { openAIProblem, WorkbenchError } from "@/lib/workbench/openai";
+import { fail, ok } from "@/lib/utils/route";
 import { prisma } from "@/lib/db/prisma";
 
 export const dynamic = "force-dynamic";
 
+function problemResponse(error: unknown) {
+  const problem = openAIProblem(error);
+  return fail("COMPOSE_ERROR", problem.message, null, problem.status);
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const id = request.nextUrl.searchParams.get("id") || "";
-    const job = id ? await prisma.composeJob.findUnique({ where: { id } }) : null;
-    const jobs = job ? [job] : await prisma.composeJob.findMany({ orderBy: { updatedAt: "desc" }, take: 20 });
-    const templates = await listComposeTemplates();
-    const settings = await getWorkbenchSettings();
-    return ok({ job, jobs, templates, modelId: settings.imageModelId });
-  } catch (error) { return handleRouteError(error); }
+    const id = request.nextUrl.searchParams.get("id");
+    const slot = request.nextUrl.searchParams.get("slot") as ComposeSlot | null;
+    if (id) {
+      const job = await requireComposeJob(id);
+      if (slot && composeSlots.includes(slot)) return serveWorkbenchImage(job[slotColumn[slot]]);
+      return ok(job);
+    }
+    const [jobs, templates] = await Promise.all([
+      prisma.composeJob.findMany({ orderBy: { updatedAt: "desc" }, select: { id: true, title: true, width: true, height: true } }),
+      prisma.composeTemplate.findMany({ orderBy: { updatedAt: "desc" } }),
+    ]);
+    return ok({ jobs, templates });
+  } catch (error) { return problemResponse(error); }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as { width?: number; height?: number; instruction?: string; referenceUse?: string; referenceNote?: string; templateName?: string; saveTemplate?: boolean; frameNote?: string; productNote?: string };
-    const width = Number(body.width);
-    const height = Number(body.height);
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 16 || height < 16 || width > 3840 || height > 3840) {
-      return handleRouteError(new Error("请填写 16 到 3840 之间的宽和高。"));
-    }
-    const settings = await getWorkbenchSettings();
-    const plan = planImageSize(width, height, settings.imageModelId);
-    const job = await createComposeJob({ width, height, instruction: body.instruction, referenceUse: body.referenceUse, referenceNote: body.referenceNote });
-    if (body.saveTemplate) {
-      await saveComposeTemplate({ name: body.templateName || "未命名模板", instruction: body.instruction, referenceUse: body.referenceUse, referenceNote: body.referenceNote, frameNote: body.frameNote, productNote: body.productNote, width, height });
-    }
-    return ok({ job, plan }, { status: 201 });
-  } catch (error) { return handleRouteError(error); }
+    const body = await request.json() as ComposeDraft;
+    return ok({ job: await createComposeJob(body) }, { status: 201 });
+  } catch (error) { return problemResponse(error); }
 }
 
 export async function PUT(request: NextRequest) {
   try {
     const form = await request.formData();
     const jobId = String(form.get("jobId") || "");
-    const slot = String(form.get("slot") || "") as "frame" | "product" | "reference";
-    if (!["frame", "product", "reference"].includes(slot)) throw new Error("槽位不正确。");
-    const libraryId = String(form.get("libraryId") || "");
+    const slot = String(form.get("slot") || "") as ComposeSlot;
+    if (!composeSlots.includes(slot)) throw new WorkbenchError("请选择正确的素材位置。");
     const file = form.get("file");
-    if (libraryId) return ok(await attachComposeInput(jobId, slot, { buffer: Buffer.alloc(0), mimeType: "image/png" }, libraryId));
-    if (!(file instanceof File)) throw new Error("请选择图片。");
-    return ok(await attachComposeInput(jobId, slot, { buffer: Buffer.from(await file.arrayBuffer()), mimeType: file.type || "image/png", fileName: file.name }));
-  } catch (error) { return handleRouteError(error); }
+    const libraryId = String(form.get("libraryId") || "");
+    if (!libraryId && !(file instanceof File) && form.get("remove") !== "1") throw new WorkbenchError("请选择图片。");
+    return ok(await attachComposeInput(jobId, slot, file instanceof File ? file : undefined, libraryId || undefined));
+  } catch (error) { return problemResponse(error); }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json() as { jobId?: string; instruction?: string; save?: boolean; versionId?: string; revision?: string; templateId?: string };
-    if (!body.jobId) throw new Error("缺少做图任务。");
-    if (body.save) return ok(await saveComposeResult(body.jobId, body.versionId));
-    if (body.templateId) return ok(await applyComposeTemplate(body.jobId, body.templateId));
-    return await withProviderCredentials(request, async () => ok(await generateComposeJob(body.jobId!, body.instruction, body.revision)));
-  } catch (error) { return handleRouteError(error); }
+    const body = await request.json() as {
+      jobId: string; action: "draft" | "generate" | "apply-template" | "save-template" | "save-result";
+      draft: ComposeDraft; versionId?: string; revision?: string; templateId?: string; name?: string;
+    };
+    if (!body.jobId) throw new WorkbenchError("找不到做图任务。");
+    switch (body.action) {
+      case "draft": return ok(await saveComposeDraft(body.jobId, body.draft));
+      case "generate": return ok(await generateComposeJob(body.jobId, body.draft, body.versionId, body.revision));
+      case "apply-template": return ok(await applyComposeTemplate(body.jobId, body.templateId || ""));
+      case "save-template": return ok(await saveComposeTemplate(body.jobId, body.name || "", body.draft));
+      case "save-result": return ok(await saveComposeResult(body.jobId, body.versionId));
+      default: throw new WorkbenchError("请选择要执行的操作。");
+    }
+  } catch (error) { return problemResponse(error); }
 }

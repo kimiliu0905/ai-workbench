@@ -1,14 +1,14 @@
 {
-  "name": "mxpage",
-  "version": "0.3.3",
+  "name": "ai-workbench",
+  "version": "0.4.0",
   "private": true,
   "description": "椰子酱电商工作台 desktop client, based on MxPage (MIT)",
   "author": "灵矩绘境 · MxPage",
   "license": "MIT",
-  "homepage": "https://github.com/ziguishian/MxPage",
+  "homepage": "https://github.com/kimiliu0905/ai-workbench",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ziguishian/MxPage.git"
+    "url": "https://github.com/kimiliu0905/ai-workbench.git"
   },
   "engines": {
     "node": ">=24 <25"
@@ -116,6 +116,7 @@
       "buildResources": "public"
     },
     "files": [
+      "LICENSE",
       "desktop/**/*",
       ".next-desktop/standalone/**/*",
       ".next-desktop/static/**/*",
