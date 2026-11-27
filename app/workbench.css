@@ -140,7 +140,7 @@
 .wb-asset-thumb { height: clamp(60px, 12vh, 106px); position: relative; background: #ebefe7; }
 .wb-asset-thumb > div { color: #718578; display: grid; place-items: center; height: 100%; }
 .wb-image-trigger, .wb-result-picture { display: grid; place-items: center; width: 100%; height: 100%; cursor: zoom-in; min-height: 0; }
-.wb-image-trigger img { width: 100%; height: 100%; object-fit: contain; }
+.wb-image-trigger img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .wb-asset-remove { position: absolute; right: 3px; top: 3px; width: 23px; height: 23px; padding: 2px; }
 .wb-asset > strong { display: block; text-align: center; font-size: 12px; margin-top: 4px; }
 .wb-asset-actions { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 3px 2px 6px; color: var(--wb-green); }
@@ -165,8 +165,10 @@
 }
 .wb-canvas-empty { display: grid; justify-items: center; gap: 8px; color: var(--wb-muted); }
 .wb-canvas-empty .wb-mark { background: #f6f6ee; }
-.wb-result-picture { padding: 12px; }
-.wb-result-picture img { width: 100%; height: 100%; max-height: 56vh; object-fit: contain; }
+.wb-result-picture img {
+  position: absolute; inset: 12px; width: calc(100% - 24px); height: calc(100% - 24px);
+  object-fit: contain;
+}
 .wb-version-strip { display: flex; gap: 7px; overflow: auto; padding: 3px 2px 5px; }
 .wb-version { display: flex; flex-direction: column; align-items: center; flex: 0 0 63px; padding: 3px; border-radius: 7px; border: 1px solid var(--wb-line); background: var(--wb-white); color: var(--wb-muted); font-size: 11px; }
 .wb-version[aria-pressed="true"] { border-color: var(--wb-green); color: var(--wb-green); }

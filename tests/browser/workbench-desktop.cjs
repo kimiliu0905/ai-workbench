@@ -232,11 +232,12 @@ async function main() {
     await mainWindow.evaluate(win => win.setSize(900, 650));
     await page.waitForFunction(() => window.innerWidth <= 910);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    assert.equal(await image.evaluate(element => {
+    const bounds = await image.evaluate(element => {
       const picture = element.getBoundingClientRect();
       const canvas = element.closest(".wb-canvas").getBoundingClientRect();
-      return picture.top >= canvas.top && picture.bottom <= canvas.bottom;
-    }), true, "The narrow-window preview must fit inside the preview canvas");
+      return { imageTop: picture.top, imageBottom: picture.bottom, canvasTop: canvas.top, canvasBottom: canvas.bottom };
+    });
+    assert.ok(bounds.imageTop >= bounds.canvasTop && bounds.imageBottom <= bounds.canvasBottom, JSON.stringify(bounds));
     await page.screenshot({ path: path.join(evidence, "compose-900x650.png") });
 
     await page.getByRole("button", { name: "存为模板" }).click();
