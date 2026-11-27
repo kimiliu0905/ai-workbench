@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { DesktopDataLocation } from "./desktop-data-location";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import type { dataOverview, previewDataRestore } from "@/lib/storage/data-backups";
@@ -34,6 +35,7 @@ export function DataManagement() {
   }
   return <div className="space-y-6">
     <h1 className="text-2xl font-semibold">数据管理</h1>
+    <DesktopDataLocation />
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {message && <p role="status" className="text-sm">{message}</p>}
     {busy && <p role="status" className="text-sm text-muted-foreground">正在校验或复制数据，请保持页面打开…</p>}

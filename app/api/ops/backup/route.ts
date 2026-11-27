@@ -19,7 +19,7 @@ export async function GET() {
 export async function POST() {
   try {
     const root = userDataDir();
-    const result = await backupDesktopData(root, path.join(root, "..", "椰子酱电商工作台-备份"));
+    const result = await backupDesktopData(root, process.env.APP_DESKTOP_BACKUP_DIR || path.join(root, "..", "椰子酱电商工作台-备份"));
     return ok(result);
   } catch (error) { return handleRouteError(error); }
 }

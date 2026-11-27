@@ -6,15 +6,17 @@ const net = require("net");
 const path = require("path");
 const { spawn } = require("child_process");
 
-const { app, BrowserWindow, dialog, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, utilityProcess } = require("electron");
 
 const { toSqliteFileUrl } = require("../scripts/runtime-paths.cjs");
 const { createAgentBroker } = require("./agent-broker.cjs");
 const { backupDesktopData } = require("./backup.cjs");
+const { readLocation, chooseDestination, migrateData, cleanupPrevious } = require("./data-location.cjs");
 const { PRODUCT_NAME, USER_DATA_DIR_NAME, DESKTOP_BIND_HOST, DEFAULT_LOCK_BASE_URL } = require("./product.cjs");
 
 app.setName(PRODUCT_NAME);
-app.setPath("userData", process.env.APP_USER_DATA_DIR || path.join(app.getPath("appData"), USER_DATA_DIR_NAME));
+const defaultDataDir = process.env.APP_USER_DATA_DIR || path.join(app.getPath("appData"), USER_DATA_DIR_NAME);
+app.setPath("userData", defaultDataDir);
 
 const windowToken = crypto.randomBytes(32).toString("hex");
 
@@ -24,6 +26,9 @@ let serverProcess = null;
 let serverUrl = null;
 let isQuitting = false;
 let agentBroker = null;
+let backupTimer;
+let activeBackup;
+let dataMoving = false;
 const ownsInstance = app.requestSingleInstanceLock();
 
 if (ownsInstance) {
@@ -74,8 +79,7 @@ async function writeJson(filePath, value) {
   await fsp.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-async function ensureDesktopRuntimeConfig() {
-  const userDataDir = app.getPath("userData");
+async function ensureDesktopRuntimeConfig(userDataDir) {
   const prismaDir = path.join(userDataDir, "prisma");
   const storageDir = path.join(userDataDir, "storage");
   const configPath = path.join(userDataDir, "config", "runtime.json");
@@ -125,6 +129,7 @@ function getRuntimeEnv(runtime, port) {
     HOSTNAME: DESKTOP_BIND_HOST,
     APP_RUNTIME: "desktop",
     APP_USER_DATA_DIR: runtime.userDataDir,
+    APP_DESKTOP_BACKUP_DIR: path.join(runtime.userDataDir, "desktop-backups"),
     DATABASE_URL: toSqliteFileUrl(runtime.databasePath),
     STORAGE_ROOT: runtime.storageDir,
     APP_SECRET: runtime.appSecret,
@@ -247,26 +252,30 @@ async function startNextServer(runtime) {
   const port = await findAvailablePort(3000);
   const env = getRuntimeEnv(runtime, port);
 
-  serverProcess = spawn(process.execPath, [serverEntry], {
+  delete env.ELECTRON_RUN_AS_NODE;
+  const child = utilityProcess.fork(path.join(__dirname, "server-entry.cjs"), [serverEntry], {
     cwd: getStandaloneRoot(),
-    env: {
-      ...env,
-      ELECTRON_RUN_AS_NODE: "1",
-      WORKBENCH_DESKTOP_BROKER: "1",
-    },
-    windowsHide: true,
-    stdio: ["ignore", "pipe", "pipe", "ipc"],
+    env: { ...env, WORKBENCH_DESKTOP_BROKER: "1" },
+    stdio: "pipe",
+    serviceName: "YezijianWorkbench",
   });
-  agentBroker.attach(serverProcess);
+  serverProcess = child;
+  agentBroker.attach({
+    on: (event, listener) => child.on(event, listener),
+    get connected() { return child.pid !== undefined; },
+    send: message => child.postMessage(message),
+  });
 
   let serverErrors = "";
 
-  serverProcess.stderr.on("data", (chunk) => {
-    serverErrors += chunk.toString();
+  child.stdout.resume();
+  child.stderr.on("data", (chunk) => {
+    serverErrors = (serverErrors + chunk.toString()).slice(-12_000);
   });
 
-  serverProcess.on("exit", (code) => {
-    if (!isQuitting && code !== 0) {
+  child.on("exit", (code) => {
+    if (serverProcess === child) serverProcess = null;
+    if (!isQuitting && !dataMoving && code !== 0) {
       dialog.showErrorBox(
         `${PRODUCT_NAME} 启动失败`,
         serverErrors || `内置服务异常退出，退出码：${code}`
@@ -470,21 +479,78 @@ function createMainWindow(url) {
 }
 
 async function shutdownServerProcess() {
-  if (!serverProcess || serverProcess.killed) {
-    return;
+  const child = serverProcess;
+  if (!child) return;
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.removeListener("exit", exited);
+      reject(new Error("本地服务未能关闭，请先退出应用再试。"));
+    }, 10000);
+    function exited() {
+      clearTimeout(timer);
+      resolve();
+    }
+    child.once("exit", exited);
+    child.kill();
+  });
+}
+
+function registerDataLocation(location) {
+  function assertTrusted(event) {
+    if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
+      throw new Error("请从工作台设置中操作。");
+    }
+    const url = new URL(event.senderFrame.url);
+    if (url.origin !== serverUrl || !["/settings", "/settings/data"].includes(url.pathname)) {
+      throw new Error("请从工作台设置中操作。");
+    }
   }
-
-  await new Promise((resolve) => {
-    const currentProcess = serverProcess;
-    currentProcess.once("exit", () => resolve(null));
-    currentProcess.kill();
-
-    setTimeout(() => {
-      if (!currentProcess.killed) {
-        currentProcess.kill("SIGKILL");
-      }
-      resolve(null);
-    }, 3000);
+  ipcMain.handle("yezijian-data:location", event => {
+    assertTrusted(event);
+    return location.directory;
+  });
+  ipcMain.handle("yezijian-data:move", async event => {
+    assertTrusted(event);
+    if (dataMoving) return;
+    dataMoving = true;
+    let stopped = false;
+    try {
+      const selection = await dialog.showOpenDialog(mainWindow, {
+        title: "选择工作台数据的新位置",
+        properties: ["openDirectory", "createDirectory"],
+      });
+      if (selection.canceled) return;
+      const destination = await chooseDestination(location.directory, selection.filePaths[0], [
+        path.dirname(process.execPath), process.resourcesPath, defaultDataDir,
+      ]);
+      const decision = await dialog.showMessageBox(mainWindow, {
+        type: "question",
+        title: "更改数据位置",
+        message: "将聊天、图片、设置和备份迁到所选位置？",
+        detail: `${destination}\n请等当前聊天和做图结束。迁移后会重启工作台，并在新位置成功打开后清理迁走的旧文件。`,
+        buttons: ["取消", "迁移并重启"],
+        cancelId: 0,
+        defaultId: 0,
+      });
+      if (decision.response !== 1) return;
+      clearInterval(backupTimer);
+      await activeBackup;
+      await shutdownServerProcess();
+      stopped = true;
+      await migrateData(defaultDataDir, location.directory, destination);
+      app.relaunch();
+      app.quit();
+    } catch (error) {
+      const message = error.code === "ENOSPC" ? "所选磁盘的可用空间不足。" : error.message;
+      if (!stopped) throw new Error(message);
+      await dialog.showMessageBox(mainWindow, {
+        type: "error", message: "迁移未完成，原数据仍然保留。", detail: message, buttons: ["重新打开工作台"],
+      });
+      app.relaunch();
+      app.quit();
+    } finally {
+      if (!stopped) dataMoving = false;
+    }
   });
 }
 
@@ -495,7 +561,9 @@ async function bootstrapDesktopApp() {
   createSplashWindow();
   updateSplashStatus("正在准备本地运行环境...");
   console.time("desktop:runtime");
-  const runtime = await ensureDesktopRuntimeConfig();
+  const location = await readLocation(defaultDataDir);
+  const runtime = await ensureDesktopRuntimeConfig(location.directory);
+  registerDataLocation(location);
   console.timeEnd("desktop:runtime");
 
   updateSplashStatus("正在初始化数据库...");
@@ -511,23 +579,29 @@ async function bootstrapDesktopApp() {
 
   updateSplashStatus("正在加载界面...");
   console.time("desktop:window");
+  try { await cleanupPrevious(defaultDataDir, location); }
+  catch { console.warn("Previous workbench data could not be cleaned up."); }
   await createMainWindow(url);
-  const backupRoot = path.join(path.dirname(runtime.userDataDir), `${USER_DATA_DIR_NAME}-备份`);
-  void backupDesktopData(runtime.userDataDir, backupRoot).catch(error => {
-    console.error("Local backup skipped", error instanceof Error ? error.message : error);
-  });
-  setInterval(() => {
-    void backupDesktopData(runtime.userDataDir, backupRoot).catch(() => {});
-  }, 24 * 60 * 60 * 1000).unref?.();
+  const backupRoot = path.join(runtime.userDataDir, "desktop-backups");
+  function backup() {
+    activeBackup = backupDesktopData(runtime.userDataDir, backupRoot).catch(error => {
+      console.error("Local backup skipped", error instanceof Error ? error.message : error);
+    });
+  }
+  backup();
+  backupTimer = setInterval(backup, 24 * 60 * 60 * 1000);
+  backupTimer.unref?.();
   console.timeEnd("desktop:window");
 
   console.timeEnd("desktop:total");
 }
 
-app.on("before-quit", async () => {
+app.on("before-quit", event => {
+  if (isQuitting) return;
+  event.preventDefault();
   isQuitting = true;
-  await agentBroker?.close();
-  await shutdownServerProcess();
+  clearInterval(backupTimer);
+  void Promise.allSettled([agentBroker?.close(), shutdownServerProcess()]).then(() => app.exit(0));
 });
 
 app.on("window-all-closed", () => {

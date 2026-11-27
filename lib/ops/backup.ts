@@ -5,7 +5,7 @@ export async function backupDesktopData(userDataDir: string, destinationRoot: st
   const resolvedUser = path.resolve(userDataDir);
   const resolvedDest = path.resolve(destinationRoot);
   const relative = path.relative(resolvedUser, resolvedDest);
-  if (!relative || (!relative.startsWith("..") && !path.isAbsolute(relative))) throw new Error("备份目录不能放在用户数据目录里面。");
+  if (relative !== "desktop-backups" && (!relative || (!relative.startsWith(".." + path.sep) && !path.isAbsolute(relative)))) throw new Error("备份目录无效。");
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const target = path.join(resolvedDest, stamp);
   await fs.mkdir(target, { recursive: true });

@@ -64,6 +64,31 @@ async function startFixture() {
   return { server, calls, url: `http://127.0.0.1:${server.address().port}/v1` };
 }
 
+async function startProxy(fixtureUrl) {
+  const fixtureHost = new URL(fixtureUrl).host;
+  const apiRequests = [];
+  const server = http.createServer((req, res) => {
+    let target;
+    try { target = new URL(req.url); }
+    catch { res.writeHead(400).end(); return; }
+    if (target.protocol !== "http:" || target.hostname !== "127.0.0.1") {
+      res.writeHead(502).end();
+      return;
+    }
+    if (target.host === fixtureHost) apiRequests.push(target.pathname);
+    const forward = http.request(target, { method: req.method, headers: req.headers }, upstream => {
+      res.writeHead(upstream.statusCode, upstream.headers);
+      upstream.pipe(res);
+    });
+    forward.on("error", () => res.destroy());
+    res.on("close", () => forward.destroy());
+    req.pipe(forward);
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  return { server, apiRequests, url: `http://127.0.0.1:${server.address().port}` };
+}
+
 async function visible(locator, timeout = 15000) {
   await locator.waitFor({ state: "visible", timeout });
 }
@@ -116,11 +141,18 @@ async function main() {
     return [name, file];
   })));
   const fixture = await startFixture();
+  const proxy = await startProxy(fixture.url);
+  const migrationRoot = process.env.WORKBENCH_MIGRATION_VOLUME || temp;
+  const migrationParent = await fs.mkdtemp(path.join(migrationRoot, "yezijian-gui-migration-"));
+  const migratedDirectory = path.join(migrationParent, "椰子酱工作台数据");
   let app;
   async function launch() {
     const env = { ...process.env, APP_USER_DATA_DIR: userData, WORKBENCH_TEST_API_URL: fixture.url };
     for (const name of ["OPENAI_API_KEY", "WORKBENCH_SECRETS_PATH", "WORKBENCH_REQUIRE_AUTH", "ELECTRON_RUN_AS_NODE", "NODE_PATH"]) delete env[name];
-    app = await _electron.launch({ executablePath: executable, cwd: scratchCwd, env, timeout: 60000 });
+    app = await _electron.launch({
+      executablePath: executable, cwd: scratchCwd, env, timeout: 60000,
+      args: [`--proxy-server=${proxy.url}`, "--proxy-bypass-list=<-loopback>"],
+    });
     const deadline = Date.now() + 45000;
     for (;;) {
       const page = app.windows().find(window => /^http:\/\/127\.0\.0\.1:/.test(window.url()));
@@ -272,14 +304,57 @@ async function main() {
     await visible(page.getByRole("button", { name: "第 3 版" }));
     await visible(page.getByRole("img", { name: "参考图", exact: true }));
     assert.equal(fixture.calls.images.length, 3, "Only the three explicit image calls may run");
+    assert.ok(proxy.apiRequests.some(route => route.startsWith("/v1/models/")));
+    assert.equal(proxy.apiRequests.filter(route => route === "/v1/chat/completions").length, 5);
+    assert.equal(proxy.apiRequests.filter(route => route === "/v1/images/edits").length, 3);
+    console.log("PASS proxy path: model validation, streaming chat and multipart image edits");
+
+    const legacyBackup = path.join(path.dirname(userData), "椰子酱电商工作台-备份");
+    await fs.mkdir(legacyBackup, { recursive: true });
+    await fs.writeFile(path.join(legacyBackup, "existing-backup.txt"), "before migration");
+    await page.getByRole("link", { name: "设置", exact: true }).click();
+    await visible(page.getByText(userData, { exact: true }));
+    await app.evaluate(({ dialog, app }, selected) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] });
+      dialog.showMessageBox = async () => ({ response: 1 });
+      app.relaunch = () => {};
+    }, migrationParent);
+    const closed = app.waitForEvent("close", { timeout: 90000 });
+    await page.getByRole("button", { name: "更改数据位置", exact: true }).click();
+    await closed;
+    app = null;
+    page = await launch();
+    await visible(page.getByRole("img", { name: "聊天图片" }));
+    await page.getByRole("link", { name: "设置", exact: true }).click();
+    await visible(page.getByText("已配置", { exact: true }));
+    await visible(page.getByText(migratedDirectory, { exact: true }));
+    await page.screenshot({ path: path.join(evidence, "data-location-migrated.png") });
+    await page.getByRole("link", { name: "做图", exact: true }).click();
+    await visible(restored.first());
+    await restored.first().click();
+    if (new URL(page.url()).searchParams.get("job") !== oldJobId) await restored.nth(1).click();
+    await visible(page.getByRole("button", { name: "第 3 版" }));
+    await page.getByRole("button", { name: "第 1 版", exact: true }).click();
+    assert.deepEqual(await downloadImage(app, page, "migrated-first-version.png"), first);
+    assert.equal(await fs.readFile(path.join(migratedDirectory, "desktop-backups", "迁移前的备份", "existing-backup.txt"), "utf8"), "before migration");
+    for (const folder of ["storage", "prisma", "config", "desktop-backups"]) {
+      await assert.rejects(fs.access(path.join(userData, folder)), { code: "ENOENT" });
+    }
+    await assert.rejects(fs.access(legacyBackup), { code: "ENOENT" });
+    console.log(`PASS data migration from ${path.parse(userData).root} to ${path.parse(migratedDirectory).root}: configuration, chat, image versions, backups and removal of copied source files`);
     console.log(`PASS ${process.platform}/${process.arch} bundled GUI: model setup, streaming, picture follow-up, timeout, three-input compose, exact PNG download, historical edit/save, template reuse, restart.`);
   } catch (error) {
     if (page) await page.screenshot({ path: path.join(evidence, "failure.png") }).catch(() => {});
     throw error;
   } finally {
     if (app) await app.close().catch(() => {});
-    fixture.server.closeAllConnections();
-    await new Promise(resolve => fixture.server.close(resolve));
+    for (const { server } of [proxy, fixture]) {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+    }
+    if (path.basename(migrationParent).startsWith("yezijian-gui-migration-")) {
+      await fs.rm(migrationParent, { recursive: true, force: true, maxRetries: 5 });
+    }
     if (path.basename(temp).startsWith("yezijian-gui-")) await fs.rm(temp, { recursive: true, force: true, maxRetries: 5 });
   }
 }

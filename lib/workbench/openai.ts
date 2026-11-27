@@ -10,7 +10,8 @@ export function workbenchOpenAI(timeout: number, apiKey = readServerApiKey()) {
   if (!apiKey) throw new WorkbenchError("请先在设置中填入 OpenAI API Key。");
   const fixture = process.env.WORKBENCH_TEST_API_URL;
   const baseURL = fixture && /^http:\/\/127\.0\.0\.1:\d+\/v1$/.test(fixture) ? fixture : DEFAULT_LOCK_BASE_URL;
-  return new OpenAI({ apiKey, baseURL, timeout, maxRetries: 0 });
+  const desktopFetch = Reflect.get(globalThis, Symbol.for("yezijian.openai.fetch")) as typeof fetch | undefined;
+  return new OpenAI({ apiKey, baseURL, timeout, maxRetries: 0, fetch: desktopFetch });
 }
 
 export function openAIProblem(error: unknown) {

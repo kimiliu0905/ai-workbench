@@ -65,6 +65,7 @@ jobs:
           $installDir = Join-Path $env:RUNNER_TEMP "YezijianInstalled"
           $result = Start-Process -FilePath $installer.FullName -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
           if ($result.ExitCode -ne 0) { throw "NSIS returned $($result.ExitCode)" }
+          $env:WORKBENCH_MIGRATION_VOLUME = $env:RUNNER_TEMP
           node tests/browser/workbench-desktop.cjs (Join-Path $installDir "YezijianWorkbench.exe")
       - name: Verify packaged macOS desktop UI
         if: runner.os == 'macOS'

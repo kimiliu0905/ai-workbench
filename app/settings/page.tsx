@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { DesktopDataLocation } from "@/components/settings/desktop-data-location";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, KeyRound } from "lucide-react";
 import { readWorkbench, sendJson } from "@/lib/workbench/client";
@@ -56,6 +57,7 @@ export default function SettingsPage() {
         {message && <p role="status" className="wb-feedback">{message}</p>}
         {error && <p role="alert" className="wb-error">{error}</p>}
       </section>
+      <DesktopDataLocation />
       {settings && <details className="wb-setting-section">
         <summary>高级设置</summary>
         <form onSubmit={event => void save(event, { textModelId: settings.textModelId, imageModelId: settings.imageModelId }, false)}>

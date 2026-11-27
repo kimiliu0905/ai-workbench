@@ -151,7 +151,9 @@ test("desktop broker is only the Electron channel, not Next's process.send", asy
   assert.equal(desktopBridgeAvailable({ APP_RUNTIME: "desktop", WORKBENCH_DESKTOP_BROKER: "1" }, send), true);
   const main = await readFile("desktop/main.cjs", "utf8");
   assert.match(main, /WORKBENCH_DESKTOP_BROKER: "1"/);
-  assert.match(main, /stdio: \["ignore", "pipe", "pipe", "ipc"\]/);
+  assert.match(main, /utilityProcess\.fork/);
+  const entry = await readFile("desktop/server-entry.cjs", "utf8");
+  assert.match(entry, /process\.parentPort\.postMessage/);
 });
 
 test("desktop startup creates the default provider without storing the API key", async () => {
