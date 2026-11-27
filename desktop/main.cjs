@@ -24,6 +24,16 @@ let serverProcess = null;
 let serverUrl = null;
 let isQuitting = false;
 let agentBroker = null;
+const ownsInstance = app.requestSingleInstanceLock();
+
+if (ownsInstance) {
+  app.on("second-instance", () => {
+    if (mainWindow?.isMinimized()) mainWindow.restore();
+    mainWindow?.focus();
+  });
+} else {
+  app.quit();
+}
 
 function getWindowIcon() {
   return app.isPackaged
@@ -532,7 +542,7 @@ app.on("activate", async () => {
   }
 });
 
-app.whenReady().then(() => {
+if (ownsInstance) app.whenReady().then(() => {
   bootstrapDesktopApp().catch((error) => {
     dialog.showErrorBox(
       `${PRODUCT_NAME} 启动失败`,

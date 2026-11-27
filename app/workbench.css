@@ -209,3 +209,14 @@
   .wb-studio-editor, .wb-result { overflow: visible; }
   .wb-studio-editor { border-right: 0; }
 }
+
+.wb-asset-thumb .wb-image-trigger, .wb-canvas .wb-result-picture { position: absolute; inset: 0; }
+.wb-canvas { position: relative; }
+
+@media (max-height: 720px) {
+  .wb-studio-editor { padding-block: 12px; }
+  .wb-studio-heading { margin-bottom: 8px; }
+  .wb-studio-editor fieldset { gap: 8px; }
+  .wb-asset-thumb { height: 59px; }
+  .wb-editor-field textarea { height: 66px; }
+}

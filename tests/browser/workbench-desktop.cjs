@@ -51,6 +51,7 @@ async function startFixture() {
         const form = await (new Response(bytes, { headers: { "Content-Type": req.headers["content-type"] } })).formData();
         const files = await Promise.all([...form.values()].filter(value => value instanceof File).map(async file => Buffer.from(await file.arrayBuffer())));
         calls.images.push({ prompt: form.get("prompt"), model: form.get("model"), size: form.get("size"), files });
+        await new Promise(resolve => setTimeout(resolve, 700));
         return json(200, { data: [{ b64_json: outputs[calls.images.length - 1].toString("base64") }] });
       }
       return json(404, { error: { message: "Unknown fixture route" } });
@@ -67,15 +68,31 @@ async function visible(locator, timeout = 15000) {
   await locator.waitFor({ state: "visible", timeout });
 }
 
-async function downloadImage(page, fileName) {
-  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: "下载 PNG" }).click()]);
+async function downloadImage(app, page, fileName) {
   const target = path.join(evidence, fileName);
-  await download.saveAs(target);
-  assert.match(download.suggestedFilename(), /^compose-873x947-.*\.png$/);
+  await app.evaluate(({ session }, target) => {
+    global.workbenchDownload = new Promise(resolve => {
+      const finish = result => { clearTimeout(timer); resolve(result); };
+      const onDownload = (_event, item) => {
+        item.setSavePath(target);
+        item.once("done", (_downloadEvent, state) => finish({ state, name: item.getFilename() }));
+      };
+      const timer = setTimeout(() => {
+        session.defaultSession.removeListener("will-download", onDownload);
+        resolve({ state: "timed out waiting for Electron download" });
+      }, 15000);
+      session.defaultSession.once("will-download", onDownload);
+    });
+  }, target);
+  await page.getByRole("link", { name: "下载 PNG" }).click();
+  const result = await app.evaluate(() => global.workbenchDownload);
+  assert.equal(result.state, "completed", JSON.stringify(result));
+  assert.match(result.name, /^compose-873x947-.*\.png$/);
   return fs.readFile(target);
 }
 
 async function asset(page, label, filename) {
+  await page.locator(".wb-studio-editor fieldset:not([disabled])").waitFor();
   await page.getByLabel(`上传${label}`, { exact: true }).setInputFiles(filename);
   const image = page.getByRole("img", { name: label, exact: true });
   await visible(image);
@@ -141,6 +158,7 @@ async function main() {
     }
     await question("请记住关键词：薄荷。");
     await visible(page.getByText("收到，", { exact: true }));
+    await page.screenshot({ path: path.join(evidence, "chat-streaming.png") });
     await visible(page.getByText("我记得关键词。", { exact: false }));
     await question("关键词是什么？");
     await visible(page.locator(".wb-assistant strong").getByText("薄荷", { exact: true }));
@@ -174,8 +192,10 @@ async function main() {
     await page.getByLabel("高度", { exact: true }).fill("947");
     await page.getByLabel("参考图用途").selectOption("layout");
     await page.getByRole("button", { name: "生成图片" }).click();
+    await visible(page.getByText("正在生成图片…", { exact: true }));
+    await page.screenshot({ path: path.join(evidence, "compose-generating.png") });
     await visible(page.getByRole("button", { name: "第 1 版", exact: true }));
-    let first = await downloadImage(page, "mock-output-873x947.png");
+    let first = await downloadImage(app, page, "mock-output-873x947.png");
     let info = await sharp(first).metadata();
     assert.deepEqual([info.width, info.height, info.format], [873, 947, "png"]);
     assert.match(fixture.calls.images[0].prompt, /873×947/);
@@ -188,7 +208,7 @@ async function main() {
     await page.getByRole("button", { name: "生成图片" }).click();
     await visible(page.getByRole("button", { name: "第 2 版", exact: true }));
     await page.getByRole("button", { name: "第 1 版", exact: true }).click();
-    assert.deepEqual(await downloadImage(page, "selected-first-version.png"), first);
+    assert.deepEqual(await downloadImage(app, page, "selected-first-version.png"), first);
     await page.getByRole("button", { name: "存入素材库" }).click();
     await visible(page.getByText("第 1 版已存入素材库。", { exact: true }));
     const library = await page.evaluate(async () => (await (await fetch("/api/library")).json()).data);
@@ -212,6 +232,11 @@ async function main() {
     await mainWindow.evaluate(win => win.setSize(900, 650));
     await page.waitForFunction(() => window.innerWidth <= 910);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.equal(await image.evaluate(element => {
+      const picture = element.getBoundingClientRect();
+      const canvas = element.closest(".wb-canvas").getBoundingClientRect();
+      return picture.top >= canvas.top && picture.bottom <= canvas.bottom;
+    }), true, "The narrow-window preview must fit inside the preview canvas");
     await page.screenshot({ path: path.join(evidence, "compose-900x650.png") });
 
     await page.getByRole("button", { name: "存为模板" }).click();

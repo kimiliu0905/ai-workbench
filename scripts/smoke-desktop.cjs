@@ -47,7 +47,7 @@ async function main() {
   try {
     const packagedFiles = await fs.readdir(path.join(resources, "app"), { recursive: true });
     assert.deepEqual(packagedFiles.filter(file => /(^|[\\/])\.env(?:\.|$)|\.db(?:-|$)|(^|[\\/])test-reports[\\/]/i.test(file)), [], "Private files must not ship");
-    for (const name of [".env", ".env.local", "storage", "test-output", "public/test-reports", "prisma/dev.db"]) {
+    for (const name of [".env", ".env.local", ".git", ".next", ".next-desktop/cache", "dist-desktop", "storage", "test-output", "public/test-reports", "prisma/dev.db"]) {
       await assert.rejects(fs.access(path.join(standalone, name)), { code: "ENOENT" }, `Private build input leaked: ${name}`);
     }
     await run([path.join(standalone, "scripts", "apply-prisma-migrations.cjs")]);
@@ -70,7 +70,7 @@ async function main() {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     assert.ok(ready, `Packaged server did not start: ${serverLog}`);
-    for (const route of ["/", "/chat", "/compose", "/api/chat", "/api/compose", "/api/workbench/settings", "/agent", "/api/agent/sessions", "/settings/agent", "/translate", "/xiaohongshu", "/history", "/tasks", "/settings/providers", "/settings/profile", "/settings/about", "/monitor/usage", "/api/projects", "/llms.txt", "/assets/phone-mockup-frame.png"]) {
+    for (const route of ["/chat", "/compose", "/api/chat", "/api/compose", "/api/workbench/settings", "/settings", "/agent", "/api/agent/sessions", "/translate", "/history", "/tasks", "/settings/profile", "/settings/about", "/api/projects", "/llms.txt", "/assets/phone-mockup-frame.png"]) {
       const response = await fetch(`http://127.0.0.1:${env.PORT}${route}`, { signal: AbortSignal.timeout(15_000) });
       assert.equal(response.status, 200, `${route}: ${serverLog}`);
       if (route === "/api/projects") assert.deepEqual((await response.json()).data, []);

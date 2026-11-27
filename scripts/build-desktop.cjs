@@ -85,19 +85,15 @@ async function prepareStandaloneBundle() {
     throw new Error("Next standalone server.js was not generated. Please verify next.config.mjs output settings.");
   }
 
-  // Next can trace local environment files; desktop settings must come from userData.
+  // Dynamic filesystem paths can cause Next to trace files from the project root.
+  // Keep the standalone runtime and rebuild every project-owned runtime directory below.
+  const runtimeEntries = new Set([desktopDistDirName, "node_modules", "package.json", "server.js"]);
   for (const name of await fsp.readdir(standaloneRoot)) {
-    if (name.startsWith(".env")) await removePath(path.join(standaloneRoot, name));
+    if (!runtimeEntries.has(name)) await removePath(path.join(standaloneRoot, name));
   }
-  await removePath(path.join(standaloneRoot, "storage"));
-  await removePath(path.join(standaloneRoot, "test-output"));
-
-  await removePath(path.join(standaloneRoot, ".next", "static"));
-  await removePath(path.join(standaloneRoot, desktopDistDirName, "static"));
-  await removePath(path.join(standaloneRoot, "public"));
-  await removePath(path.join(standaloneRoot, "prisma"));
-  await removePath(path.join(standaloneRoot, "scripts"));
-  await removePath(path.join(standaloneRoot, "desktop"));
+  const compiled = path.join(standaloneRoot, desktopDistDirName);
+  await removePath(path.join(compiled, "cache"));
+  await removePath(path.join(compiled, "static"));
 
   await copyDirectory(path.join(desktopDistDir, "static"), path.join(standaloneRoot, desktopDistDirName, "static"));
 

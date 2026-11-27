@@ -63,7 +63,7 @@ export default function SettingsPage() {
           <label>做图模型<select value={settings.imageModelId} onChange={event => setSettings({ ...settings, imageModelId: event.target.value })}>{settings.imageModelOptions.map(model => <option key={model}>{model}</option>)}</select></label>
           <button className="wb-button" type="submit" disabled={busy}>保存模型</button>
         </form>
-        <div className="wb-setting-links"><Link href="/settings/data">数据管理</Link><Link href="/settings/agent">Agent 设置</Link><Link href="/settings/about">关于</Link></div>
+        <div className="wb-setting-links"><Link href="/settings/data">数据管理</Link><Link href="/settings/about">关于</Link></div>
       </details>}
     </div>
   );
