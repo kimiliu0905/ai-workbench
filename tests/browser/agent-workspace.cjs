@@ -40,7 +40,7 @@ async function until(fn) { for(let i=0;i<300;i++){if(await fn())return;await sle
   await db.providerConfig.create({data:{name:'Mock Agent',baseUrl,apiKeyEncrypted:'',isActive:true,models:{create:{modelId:'agent-model-A',label:'测试模型 A',roles:{},isDefaultPlanning:true,capabilities:{text:true,vision:true,__agentTools:{key:hash([`${baseUrl}/v1`,'agent-model-A',fingerprint]),protocol:'chat_completions',streaming:false,verifiedAt:new Date().toISOString()}}}}}});
   const port=await new Promise(r=>{const server=net.createServer();server.listen(0,'127.0.0.1',()=>{const n=server.address().port;server.close(()=>r(n));});});const url=`http://127.0.0.1:${port}`;
   const log=fs.openSync('test-output/agent-browser/server.log','w');
-  const server=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'dev','--hostname','127.0.0.1','--port',String(port)],{windowsHide:true,stdio:['ignore',log,log],env:{...process.env,DATABASE_URL:databaseUrl,STORAGE_ROOT:path.join(directory,'storage'),NEXT_DIST_DIR:dist,MXPAGE_TEST_TSCONFIG:config,LOCK_BASE_URL:baseUrl,FORCED_API_BASE:baseUrl,NEXT_TELEMETRY_DISABLED:'1'}});
+  const server=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'dev','--hostname','127.0.0.1','--port',String(port)],{windowsHide:true,stdio:['ignore',log,log],env:{...process.env,DATABASE_URL:databaseUrl,STORAGE_ROOT:path.join(directory,'storage'),NEXT_DIST_DIR:dist,MXPAGE_TEST_TSCONFIG:config,OPENAI_API_KEY:key,LOCK_BASE_URL:baseUrl,FORCED_API_BASE:baseUrl,NEXT_TELEMETRY_DISABLED:'1'}});
   let browser;
   try{
     await until(async()=>{try{return(await fetch(`${url}/agent`)).ok;}catch{return false;}});
@@ -55,8 +55,13 @@ async function until(fn) { for(let i=0;i<300;i++){if(await fn())return;await sle
         }
       };
     });
-    await page.goto(`${url}/agent`);await page.getByRole('heading',{name:'Agent 工作台',exact:true}).waitFor();
-    const nav=page.getByRole('navigation',{name:'主导航',exact:true});assert.deepEqual((await nav.locator('a').allTextContents()).slice(0,2),['Agent 工作台','一键详情页']);
+    await page.goto(`${url}/chat`);
+    const nav=page.getByRole('navigation',{name:'主导航',exact:true});
+    await nav.getByRole('link',{name:'聊天',exact:true}).waitFor();
+    await nav.getByRole('link',{name:'做图',exact:true}).waitFor();
+    await page.getByText('更多',{exact:true}).click();
+    await page.getByRole('link',{name:'Agent',exact:true}).click();
+    await page.getByRole('heading',{name:'Agent 工作台',exact:true}).waitFor();
     await page.getByLabel('发送消息',{exact:true}).fill('请整理研究文档并导出');await page.getByRole('button',{name:'发送',exact:true}).click();
     await page.getByRole('button',{name:'确认方案并执行',exact:true}).waitFor({timeout:60000});
     assert.equal(await db.agentArtifact.count(),0);assert.equal(calls.length,1);
@@ -85,7 +90,13 @@ async function until(fn) { for(let i=0;i<300;i++){if(await fn())return;await sle
     await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'计划与成果',exact:true}).click();await page.getByRole('heading',{name:'计划与成果',exact:true}).waitFor();
     await page.screenshot({path:'test-output/agent-browser/mobile.png',fullPage:true});await page.getByRole('button',{name:'关闭',exact:true}).click();
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'mobile overflow');
-    await page.goto(`${url}/settings/agent`);await page.getByRole('heading',{name:'Agent 设置',exact:true}).waitFor();await page.getByRole('button',{name:'保存设置',exact:true}).click();await page.getByText('已保存。新任务使用新设置，已有任务继续使用原快照。',{exact:true}).waitFor();
+    await page.goto(`${url}/settings`);
+    await page.getByRole('heading',{name:'连接 OpenAI',exact:true}).waitFor();
+    await page.getByText('高级设置',{exact:true}).click();
+    await page.getByLabel('聊天模型').selectOption('gpt-6.2-sol');
+    await page.getByRole('button',{name:'保存模型',exact:true}).click();
+    await page.getByText('模型设置已保存。',{exact:true}).waitFor();
+    assert.equal((await db.workbenchSettings.findUnique({where:{id:'default'}})).textModelId,'gpt-6.2-sol');
     assert.deepEqual(errors,[]);console.log('PASS Agent browser: navigation, confirmation, refresh, document download, answer replay without duplication, rename, mobile drawers, settings');
   }catch(error){
     if(browser){const pages=browser.contexts().flatMap(c=>c.pages());if(pages[0]){await pages[0].screenshot({path:'test-output/agent-browser/failure.png',fullPage:true});fs.writeFileSync('test-output/agent-browser/failure.txt',await pages[0].locator('body').innerText());}}

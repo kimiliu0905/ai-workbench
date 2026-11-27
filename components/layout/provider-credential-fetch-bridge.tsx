@@ -5,25 +5,6 @@ import { trackQueueRequest } from "@/lib/tasks/client-requests";
 
 export const CLIENT_PROVIDER_STORAGE_KEY = "mxpage:provider-credentials:v1";
 
-type StoredProviderCredentials = {
-  apiKey?: string;
-  baseUrl?: string;
-};
-
-function readCredentials(): StoredProviderCredentials {
-  try {
-    const raw = window.localStorage.getItem(CLIENT_PROVIDER_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as StoredProviderCredentials;
-    return {
-      apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey.trim() : "",
-      baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl.trim() : "",
-    };
-  } catch {
-    return {};
-  }
-}
-
 function shouldAttachCredentials(input: RequestInfo | URL) {
   const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
   if (url.startsWith("/api/")) return true;
@@ -44,15 +25,9 @@ export function ProviderCredentialFetchBridge() {
         return originalFetch(input, init);
       }
 
-      const credentials = readCredentials();
       const headers = new Headers(init.headers ?? (input instanceof Request ? input.headers : undefined));
-
-      if (credentials.apiKey) {
-        headers.set("x-mxpage-api-key", credentials.apiKey);
-      }
-      if (credentials.baseUrl) {
-        headers.set("x-mxpage-base-url", credentials.baseUrl);
-      }
+      headers.delete("x-mxpage-api-key");
+      headers.delete("x-mxpage-base-url");
 
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
       const method = init.method ?? (input instanceof Request ? input.method : "GET");

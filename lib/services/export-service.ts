@@ -115,7 +115,7 @@ export async function buildProjectJson(projectId: string) {
   return project;
 }
 
-export async function buildImageArchive(projectId: string) {
+export async function buildImageArchive(projectId: string, sectionIds?: string[]) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: {
@@ -140,6 +140,12 @@ export async function buildImageArchive(projectId: string) {
 
   if (!project) {
     throw new Error("Project not found.");
+  }
+  if (sectionIds?.length) {
+    const allowed = new Set(sectionIds);
+    project.sections = project.sections.filter(section => allowed.has(section.id) && section.currentImageAsset);
+    project.assets = [];
+    if (!project.sections.length) throw new Error("没有可导出的已成功图片。");
   }
 
   const existingTask = await findRecentRunningTask({

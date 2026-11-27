@@ -50,7 +50,7 @@ async function until(check, label) { for (let i = 0; i < 300; i++) { if (await c
   await db.providerConfig.create({ data: { name: 'Isolated mock', baseUrl: providerUrl, apiKeyEncrypted: 'unused', isActive: true, models: { create: promptFlow ? promptFlow.models : { modelId: 'gpt-image-2.5-flare', label: 'Mock', capabilities: { image_edit: true, real_image_edit: true }, roles: {}, isDefaultImageEdit: true } } } });
   const log = fs.openSync('test-output/browser-regression/server.log', 'w');
   // Unique dist/config/database and an ephemeral port; never reuse the user's running service.
-  const server = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'dev', '--hostname', '127.0.0.1', '--port', String(port)], { windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', log, log], env: { ...process.env, DATABASE_URL: databaseUrl, STORAGE_ROOT: path.join(directory, 'storage'), NEXT_DIST_DIR: dist, MXPAGE_TEST_TSCONFIG: tsconfigFile, LOCK_BASE_URL: providerUrl, FORCED_API_BASE: providerUrl, FORCED_API_BASE_URL: providerUrl, NEXT_TELEMETRY_DISABLED: '1' } });
+  const server = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'dev', '--hostname', '127.0.0.1', '--port', String(port)], { windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', log, log], env: { ...process.env, DATABASE_URL: databaseUrl, STORAGE_ROOT: path.join(directory, 'storage'), NEXT_DIST_DIR: dist, MXPAGE_TEST_TSCONFIG: tsconfigFile, OPENAI_API_KEY: 'isolated-test-key', LOCK_BASE_URL: providerUrl, FORCED_API_BASE: providerUrl, FORCED_API_BASE_URL: providerUrl, NEXT_TELEMETRY_DISABLED: '1' } });
   let browser;
   const reports = [];
   try {
@@ -90,6 +90,8 @@ async function until(check, label) { for (let i = 0; i < 300; i++) { if (await c
       const before = await db.project.count({ where: { platform: { not: '__mxpage_system_task__' } } });
       const startCalls = calls.length;
       await page.goto(`${baseUrl}/translate`);
+      for (const name of [/泰语/, /印尼语/]) await page.getByRole('checkbox', { name }).uncheck();
+      await page.getByRole('checkbox', { name: 'English', exact: true }).check();
       if (count > 1) await page.getByRole('button', { name: '多张翻译', exact: true }).click();
       await page.locator('input[type=file]').setInputFiles(Array.from({ length: count }, (_, i) => ({ name: `case-${count}-${i+1}.png`, mimeType: 'image/png', buffer: png })));
       await page.getByRole('button', { name: /开始翻译/ }).click();

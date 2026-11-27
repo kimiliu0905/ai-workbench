@@ -15,13 +15,13 @@ export function AgentSettingsPanel() {
     catch (error) { setMessage(error instanceof Error ? error.message : "原生搜索尚不可用"); }
     finally { setBusy(false); }
   };
-  useEffect(() => { agentFetch("/api/agent/settings").then(value => { setData(value); setSettings(value.settings); }).catch(e => setMessage(e.message)); try { const value = JSON.parse(localStorage.getItem("mxpage:agent-credentials:v1") || "{}"); setTavilyKey(value.tavilyKey || ""); setTokens(value.mcpTokens || {}); } catch {} }, []);
+  useEffect(() => { agentFetch("/api/agent/settings").then(value => { setData(value); setSettings(value.settings); }).catch(e => setMessage(e.message)); }, []);
   const save = async () => {
     setBusy(true); setMessage("");
     try {
       const saved = await agentFetch("/api/agent/settings", { method: "PUT", body: JSON.stringify(settings) });
       if (window.mxPageDesktop?.agent) await window.mxPageDesktop.agent.configureMcp(saved.mcp);
-      setSettings(saved); localStorage.setItem("mxpage:agent-credentials:v1", JSON.stringify({ tavilyKey, mcpTokens: tokens }));
+      setSettings(saved);
       setMessage("已保存。新任务使用新设置，已有任务继续使用原快照。"); setData(await agentFetch("/api/agent/settings"));
     } catch (e) { setMessage(e instanceof Error ? e.message : "保存失败"); } finally { setBusy(false); }
   };

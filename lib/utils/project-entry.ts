@@ -11,6 +11,5 @@ export function translationEntryHref(project: ProjectEntry) {
     ? `/translate/${encodeURIComponent(snapshot.translationBatchId)}` : `/projects/${project.id}/editor`;
 }
 export function workEntryHref(project: { id: string; category: string; sectionCount: number }) {
-  return project.category === "xiaohongshu" ? `/xiaohongshu?project=${project.id}`
-    : `/projects/${project.id}/${project.category === "translation" || project.sectionCount ? "editor" : "configure"}`;
+  return `/projects/${project.id}/${project.category === "translation" || project.sectionCount ? "editor" : "configure"}`;
 }

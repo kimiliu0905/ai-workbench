@@ -116,7 +116,7 @@ test("brief route reports missing browser credentials before dispatch and leaves
   assert.equal(response.status, 400);
   const payload = await response.json();
   assert.equal(payload.error.code, "PROVIDER_CREDENTIALS_MISSING");
-  assert.match(payload.error.message, /当前浏览器.*API Key/);
+  assert.match(payload.error.message, /本机服务尚未配置模型密钥/);
   assert.deepEqual(payload.error.details, { source: "local" });
   assert.equal(calls.length, 0);
   assert.equal((await db.project.findUniqueOrThrow({ where: { id } })).modelSnapshot, null);

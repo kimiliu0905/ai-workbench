@@ -8,6 +8,7 @@ import { historyHref, parseHistoryQuery } from "@/lib/utils/project-history";
 export const dynamic = "force-dynamic";
 
 export default async function HistoryPage({ searchParams }: { searchParams: { category?: string | string[]; page?: string | string[] } }) {
+  if (searchParams.category === "xiaohongshu") redirect("/history");
   const history = await listProjectHistory(searchParams);
   if (parseHistoryQuery(searchParams).page !== history.page) redirect(historyHref(history.category, history.page));
 

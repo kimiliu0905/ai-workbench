@@ -124,7 +124,7 @@ export default function ProviderSettingsPageClient({ billingRules }: { billingRu
       <PageHeader
         eyebrow="模型服务配置"
         title="Provider 与模型配置中心"
-        description="页面展示已保存的 Provider 与模型快照。API Key 仅保存在当前浏览器；私有化部署可通过 LOCK_BASE_URL 锁定统一 API 通道。"
+        description="页面展示已保存的模型服务快照。密钥由本机主进程提供，页面不收集密钥。"
       />
 
       {loading ? (

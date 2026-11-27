@@ -164,7 +164,7 @@ test("concurrent requests reserve against one money budget and completed calls r
   const run = await db.agentRun.create({ data: { sessionId: session.id, idempotencyKey: "budget-test", status: "RUNNING", leaseToken: "owner", leaseUntil: new Date(Date.now() + 60000), input: {}, snapshot: { settings: settingsSchema.parse({ moneyBudgetUsd: 1, requestReserveUsd: 0.4 }) } } });
   const results = await Promise.allSettled([1, 2, 3].map(i => reserveCall(run.id, "owner", `model-${i}`, "model", { i }, true)));
   const accepted = results.flatMap((result, index) => result.status === "fulfilled" ? [{ value: result.value, i: index + 1 }] : []);
-  assert.equal(accepted.length, 2);
+  assert.equal(accepted.length, 2, results.map(result => result.status === "rejected" ? result.reason?.message : "reserved").join(" | "));
   // Concurrent reservations may acquire the transaction in any order.
   const first = accepted[0].value;
   await completeCall(run.id, "owner", first.call!.id, { answer: "saved" });

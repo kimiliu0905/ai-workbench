@@ -1,14 +1,14 @@
 {
-  "name": "mxpage",
-  "version": "0.3.3",
-  "private": false,
-  "description": "MxPage AI e-commerce detail page generation and editing workspace",
+  "name": "ai-workbench",
+  "version": "0.4.1",
+  "private": true,
+  "description": "椰子酱电商工作台 desktop client, based on MxPage (MIT)",
   "author": "灵矩绘境 · MxPage",
   "license": "MIT",
-  "homepage": "https://github.com/ziguishian/MxPage",
+  "homepage": "https://github.com/kimiliu0905/ai-workbench",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ziguishian/MxPage.git"
+    "url": "https://github.com/kimiliu0905/ai-workbench.git"
   },
   "engines": {
     "node": ">=24 <25"
@@ -102,8 +102,9 @@
     "typescript": "^5.8.3"
   },
   "build": {
-    "appId": "com.mxpage.app",
-    "productName": "MxPage",
+    "appId": "com.yezijian.ecommerce-workbench",
+    "productName": "椰子酱电商工作台",
+    "executableName": "YezijianWorkbench",
     "asar": false,
     "npmRebuild": false,
     "asarUnpack": [
@@ -115,6 +116,7 @@
       "buildResources": "public"
     },
     "files": [
+      "LICENSE",
       "desktop/**/*",
       ".next-desktop/standalone/**/*",
       ".next-desktop/static/**/*",
@@ -158,7 +160,7 @@
           ]
         }
       ],
-      "artifactName": "MxPage-${version}-windows-${arch}.${ext}"
+      "artifactName": "YezijianWorkbench-${version}-windows-${arch}.${ext}"
     },
     "mac": {
       "category": "public.app-category.graphics-design",
@@ -168,7 +170,7 @@
       "icon": "public/brand-icon.png",
       "identity": "-",
       "hardenedRuntime": false,
-      "artifactName": "MxPage-${version}-macos-${arch}.${ext}"
+      "artifactName": "YezijianWorkbench-${version}-macos-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

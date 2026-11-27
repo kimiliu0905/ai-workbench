@@ -8,6 +8,7 @@ import {
   buildSectionImagePrompt,
   buildSectionSvgLayoutPrompt,
 } from "@/lib/ai/prompts";
+import { planImageSize, readImageSize } from "@/lib/image/size-policy";
 import { prisma } from "@/lib/db/prisma";
 import { getProviderAdapter, snapshotProvider } from "@/lib/services/provider-service";
 import { imageTaskLifecycle, prepareImageRecovery, trackedImageRequest } from "./image-task-recovery";
@@ -1019,9 +1020,22 @@ export async function editSectionImage(
 
       await prepareImageRecovery(task.id, { model: selectedModel, prompt, copy: section.copy, baseImageAssetId: section.currentImageAssetId,
         metadata: { mode: "image_api", editMode, targetLanguage: editMode === "translate" ? effectiveContentLanguage : undefined, baseImageAssetId: section.currentImageAssetId, sourceReferenceAssetIds: productReferenceAssets.map(asset => asset.id) } });
+      const savedTarget = (project.modelSnapshot as { targetSize?: { width?: number; height?: number } } | null)?.targetSize;
+      let lockTarget = savedTarget?.width && savedTarget.height ? { width: savedTarget.width, height: savedTarget.height } : undefined;
+      let translateSize = outputSize;
+      if (editMode === "translate") {
+        if (!lockTarget) {
+          const encoded = /^data:[^;]+;base64,(.+)$/.exec(baseImage);
+          if (encoded) lockTarget = await readImageSize(Buffer.from(encoded[1], "base64"));
+        }
+        if (lockTarget) {
+          const plan = planImageSize(lockTarget.width, lockTarget.height, selectedModel);
+          translateSize = `${plan.requestWidth}x${plan.requestHeight}`;
+        }
+      }
       const generation = editMode === "translate" ? {
         model: selectedModel,
-        generated: await trackedImageRequest(task.id, () => adapter.generateImageOnce({ model: selectedModel, prompt, referenceImages: [baseImage], size: "auto", quality: generationSettings.quality, timeoutMs: 180000, monitor: { projectId, sectionId, operation: "translate_section_image" },
+        generated: await trackedImageRequest(task.id, () => adapter.generateImageOnce({ model: selectedModel, prompt, referenceImages: [baseImage], size: translateSize, quality: generationSettings.quality, timeoutMs: 180000, monitor: { projectId, sectionId, operation: "translate_section_image" },
           ...imageTaskLifecycle(task.id),
         })),
       } : await editWithFallback({
@@ -1054,6 +1068,7 @@ export async function editSectionImage(
           sourceReferenceAssetIds: productReferenceAssets.map((asset) => asset.id),
           primaryReferenceAssetId: productReferenceAssets[0]?.id ?? null,
         },
+        targetSize: lockTarget,
       });
 
       usedModel = generation.model;

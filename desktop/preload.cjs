@@ -9,3 +9,8 @@ contextBridge.exposeInMainWorld("mxPageDesktop", {
     configureMcp: servers => ipcRenderer.invoke("mxpage-agent:configure-mcp", servers),
   },
 });
+
+contextBridge.exposeInMainWorld("yezijianData", {
+  location: () => ipcRenderer.invoke("yezijian-data:location"),
+  move: () => ipcRenderer.invoke("yezijian-data:move"),
+});
