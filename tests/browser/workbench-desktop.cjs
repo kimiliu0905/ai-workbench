@@ -144,7 +144,7 @@ async function main() {
   const proxy = await startProxy(fixture.url);
   const migrationRoot = process.env.WORKBENCH_MIGRATION_VOLUME || temp;
   const migrationParent = await fs.mkdtemp(path.join(migrationRoot, "yezijian-gui-migration-"));
-  const migratedDirectory = path.join(migrationParent, "椰子酱工作台数据");
+  const migratedDirectory = path.join(await fs.realpath(migrationParent), "椰子酱工作台数据");
   let app;
   async function launch() {
     const env = { ...process.env, APP_USER_DATA_DIR: userData, WORKBENCH_TEST_API_URL: fixture.url };
@@ -296,11 +296,11 @@ async function main() {
     await page.getByRole("link", { name: "设置", exact: true }).click();
     await visible(page.getByText("已配置", { exact: true }));
     await page.getByRole("link", { name: "做图", exact: true }).click();
-    const restored = page.getByRole("button", { name: /保留主框边界/ });
-    await visible(restored.first());
-    await restored.first().click();
+    const restored = () => page.getByRole("button", { name: /保留主框边界/ });
+    await visible(restored().first());
+    await restored().first().click();
     await visible(page.getByRole("img", { name: "产品图", exact: true }));
-    if (new URL(page.url()).searchParams.get("job") !== oldJobId) await restored.nth(1).click();
+    if (new URL(page.url()).searchParams.get("job") !== oldJobId) await restored().nth(1).click();
     await visible(page.getByRole("button", { name: "第 3 版" }));
     await visible(page.getByRole("img", { name: "参考图", exact: true }));
     assert.equal(fixture.calls.images.length, 3, "Only the three explicit image calls may run");
@@ -330,9 +330,9 @@ async function main() {
     await visible(page.getByText(migratedDirectory, { exact: true }));
     await page.screenshot({ path: path.join(evidence, "data-location-migrated.png") });
     await page.getByRole("link", { name: "做图", exact: true }).click();
-    await visible(restored.first());
-    await restored.first().click();
-    if (new URL(page.url()).searchParams.get("job") !== oldJobId) await restored.nth(1).click();
+    await visible(restored().first());
+    await restored().first().click();
+    if (new URL(page.url()).searchParams.get("job") !== oldJobId) await restored().nth(1).click();
     await visible(page.getByRole("button", { name: "第 3 版" }));
     await page.getByRole("button", { name: "第 1 版", exact: true }).click();
     assert.deepEqual(await downloadImage(app, page, "migrated-first-version.png"), first);

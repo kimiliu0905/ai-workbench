@@ -87,9 +87,18 @@ jobs:
         with:
           name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
-            dist-desktop/YezijianWorkbench-*-${{ matrix.platform }}-${{ matrix.arch }}.exe
             dist-desktop/YezijianWorkbench-*-${{ matrix.platform }}-${{ matrix.arch }}.zip
             dist-desktop/SHA256SUMS-${{ matrix.platform }}.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: installer-windows-x64
+          path: |
+            dist-desktop/YezijianWorkbench-*-windows-x64.exe
+            dist-desktop/SHA256SUMS-windows.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
